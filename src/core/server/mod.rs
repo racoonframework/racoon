@@ -617,7 +617,7 @@ impl Server {
             if response.serve_default() {
                 if !is_keep_alive {
                     let headers = response.get_headers();
-                    headers.set("Connection", "close".as_bytes());
+                    headers.set("Connection", "close");
                 }
 
                 let response_bytes = response::response_to_bytes(&mut response);
