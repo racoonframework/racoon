@@ -159,7 +159,27 @@ impl Server {
         Ok(instance)
     }
 
-    // Force provided scheme in all the requests
+    /// Force provided scheme in all the requests
+    ///
+    /// # Examples
+    /// ```
+    /// use racoon::core::server::Server;
+    /// use racoon::core::request::Request;
+    /// use racoon::core::response::Response;
+    /// use racoon::core::server::RequestScheme;
+    ///
+    ///
+    /// async fn home(request: Request) -> Response {
+    ///    let scheme = request.scheme;
+    ///    assert_eq!(scheme, "https");
+    ///
+    ///    todo!()
+    /// }
+    ///
+    /// let server = Server::bind("127.0.0.1::8080")
+    ///     .set_scheme(RequestScheme::HTTPS);
+    ///
+    /// ```
     pub fn set_scheme(&mut self, scheme: RequestScheme) -> &mut Self {
         match scheme {
             RequestScheme::HTTP => {
@@ -174,7 +194,7 @@ impl Server {
         self
     }
 
-    // Enables logging for internal debug
+    /// Enables logging for internal debug
     pub fn enable_logging() {
         env::set_var("RACOON_LOGGING", "true");
     }
