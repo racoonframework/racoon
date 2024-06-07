@@ -1,0 +1,6 @@
+/target
+/ignored
+src/main.rs
+.idea/
+.cache/
+.env
