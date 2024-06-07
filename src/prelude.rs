@@ -5,3 +5,4 @@ pub use crate::core::response::status::ResponseStatus;
 pub use crate::core::response::HttpResponse;
 pub use crate::core::response::JsonResponse;
 pub use crate::core::shortcuts::SingleText;
+pub use crate::core::server::Server;
