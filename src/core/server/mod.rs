@@ -6,7 +6,7 @@ use std::env;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Condvar, Mutex as StdMutex};
 
 use matchit::Router;
 
@@ -56,6 +56,8 @@ pub enum RequestScheme {
     HTTPS,
 }
 
+pub type ShutdownLock = Arc<(StdMutex<()>, Condvar)>;
+
 pub struct Server {
     scheme: String,
     bind_address: Option<String>,
@@ -70,6 +72,7 @@ pub struct Server {
     request_constraints: Arc<RequestConstraints>,
     form_constraints: Arc<FormConstraints>,
     session_manager: Option<Arc<SessionManager>>,
+    shutdown_lock: ShutdownLock,
 }
 
 impl Server {
@@ -101,6 +104,7 @@ impl Server {
             request_constraints: Arc::from(default_request_constraint),
             form_constraints: Arc::from(default_form_constraint),
             session_manager: None,
+            shutdown_lock: Arc::new((StdMutex::new(()), Condvar::new())),
         }
     }
 
@@ -256,7 +260,7 @@ impl Server {
     }
 
     /// Runs server in blocking thread.
-    pub async fn run(&mut self) -> std::io::Result<()> {
+    pub async fn run(&mut self) -> std::io::Result<&mut Self> {
         let session_manager: Arc<SessionManager>;
         if let Some(custom_session_manager) = &self.session_manager {
             session_manager = custom_session_manager.clone();
@@ -285,6 +289,7 @@ impl Server {
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
                 session_manager.clone(),
+                self.shutdown_lock.clone(),
             )
             .await?;
         }
@@ -304,6 +309,7 @@ impl Server {
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
                 session_manager.clone(),
+                self.shutdown_lock.clone(),
             )
             .await?;
         }
@@ -325,6 +331,7 @@ impl Server {
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
                 session_manager.clone(),
+                self.shutdown_lock.clone(),
             )
             .await?;
         }
@@ -341,6 +348,7 @@ impl Server {
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
                 session_manager.clone(),
+                self.shutdown_lock.clone(),
             )
             .await?;
         }
@@ -356,11 +364,27 @@ impl Server {
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
                 session_manager.clone(),
+                self.shutdown_lock.clone(),
             )
             .await?;
         }
 
-        Ok(())
+        Ok(self)
+    }
+
+    async fn wait_shutdown(shutdown_lock: ShutdownLock) {
+        let _ = tokio::task::spawn_blocking(move || {
+            let (mutex, condvar) = &*shutdown_lock;
+            match mutex.lock() {
+                Ok(lock) => {
+                    drop(condvar.wait(lock));
+                }
+                Err(error) => {
+                    log::error!("{}", error);
+                }
+            };
+        })
+        .await;
     }
 
     async fn listen_port(
@@ -374,19 +398,24 @@ impl Server {
         request_constraints: Arc<RequestConstraints>,
         form_constraints: Arc<FormConstraints>,
         session_manager: Arc<SessionManager>,
+        shutdown_lock: ShutdownLock,
     ) -> std::io::Result<()> {
         loop {
             let router = router.clone();
             let context = context.clone();
             let tls_acceptor = tls_acceptor.clone();
 
-            let (tcp_stream, _) = match listener.accept().await {
-                Ok(result) => result,
-                Err(error) => {
-                    racoon_error!("Failed to accept connection: {}", error);
-                    continue;
+            let tcp_stream;
+
+            tokio::select! {
+                Ok((accepted_stream, _)) = listener.accept() => {
+                    tcp_stream = accepted_stream;
                 }
-            };
+                _ = Self::wait_shutdown(shutdown_lock.clone()) => {
+                    racoon_debug!("Shutting down listener");
+                    return Ok(());
+                }
+            }
 
             let request_constraints = request_constraints.clone();
             let form_constraints = form_constraints.clone();
@@ -455,18 +484,23 @@ impl Server {
         request_constraints: Arc<RequestConstraints>,
         form_constraints: Arc<FormConstraints>,
         session_type: Arc<SessionManager>,
+        shutdown_lock: ShutdownLock,
     ) -> std::io::Result<()> {
         loop {
             let router = router.clone();
             let context = context.clone();
 
-            let unix_stream = match listener.accept().await {
-                Ok((unix_stream, _)) => unix_stream,
-                Err(error) => {
-                    racoon_error!("Failed to accept connection: {}", error);
-                    continue;
-                }
-            };
+            let unix_stream;
+
+            tokio::select! {
+                Ok((accepted_stream, _)) = listener.accept() => {
+                        unix_stream = accepted_stream;
+                    }
+                _ = Self::wait_shutdown(shutdown_lock.clone()) => {
+                            racoon_debug!("Shutting down listener");
+                            return Ok(());
+                        }
+            }
 
             let request_constraints = request_constraints.clone();
             let form_constraints = form_constraints.clone();
@@ -656,5 +690,9 @@ impl Server {
                 break;
             }
         }
+    }
+
+    pub fn shutdown_lock(&self) -> ShutdownLock {
+        self.shutdown_lock.clone()
     }
 }
