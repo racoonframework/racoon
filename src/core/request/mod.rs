@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -105,11 +105,11 @@ impl Request {
         self.context.downcast_ref::<T>()
     }
 
-    pub async fn parse(&mut self) -> (FormData, Files) {
+    pub async fn parse(&self) -> (FormData, Files) {
         self.parse_body(self.form_constraints.clone()).await
     }
 
-    async fn parse_body(&mut self, form_constraints: Arc<FormConstraints>) -> (FormData, Files) {
+    async fn parse_body(&self, form_constraints: Arc<FormConstraints>) -> (FormData, Files) {
         let form_data = FormData::new();
         let files = Files::new();
 
@@ -121,7 +121,8 @@ impl Request {
             return (form_data, files);
         }
 
-        self.body_read = Arc::from(AtomicBool::from(false));
+        let body_read = self.body_read.clone();
+        body_read.store(false, Ordering::Relaxed);
 
         if content_type
             .to_lowercase()
@@ -132,12 +133,12 @@ impl Request {
             return match MultipartParser::parse(
                 self.stream.clone(),
                 form_constraints,
-                &mut self.headers,
+                &self.headers,
             )
             .await
             {
                 Ok((form_data, files)) => {
-                    self.body_read = Arc::from(AtomicBool::from(true));
+                    self.body_read.store(true, Ordering::Relaxed);
                     (form_data, files)
                 }
                 Err(error) => {
@@ -152,13 +153,13 @@ impl Request {
             racoon_debug!("Parsing with UrlEncoded parser.");
             return match UrlEncodedParser::parse(
                 self.stream.clone(),
-                &mut self.headers,
+                &self.headers,
                 form_constraints,
             )
             .await
             {
                 Ok(form_data) => {
-                    self.body_read = Arc::from(AtomicBool::from(true));
+                    self.body_read.store(true, Ordering::Relaxed);
                     (form_data, files)
                 }
                 Err(error) => {

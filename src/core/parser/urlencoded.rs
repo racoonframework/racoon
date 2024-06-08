@@ -20,7 +20,7 @@ pub struct UrlEncodedParser {
 }
 
 impl UrlEncodedParser {
-    pub fn from(stream: Arc<Stream>, headers: &mut Headers,
+    pub fn from(stream: Arc<Stream>, headers: &Headers,
                 form_constraints: Arc<FormConstraints>) -> Result<UrlEncodedParser, FormFieldError> {
         let content_length;
         if let Some(value) = headers.value("Content-Length") {
@@ -66,7 +66,7 @@ impl UrlEncodedParser {
         }
     }
 
-    pub async fn parse(stream: Arc<Stream>, headers: &mut Headers, form_constraints: Arc<FormConstraints>)
+    pub async fn parse(stream: Arc<Stream>, headers: &Headers, form_constraints: Arc<FormConstraints>)
                        -> Result<FormData, FormFieldError> {
         let parser = UrlEncodedParser::from(stream, headers, form_constraints)?;
         let params = parser.query_params().await?;

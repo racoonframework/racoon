@@ -37,7 +37,7 @@ pub struct MultipartParser {
 }
 
 impl MultipartParser {
-    pub fn from(stream: Arc<Stream>, headers: &mut Headers,
+    pub fn from(stream: Arc<Stream>, headers: &Headers,
                 form_constraints: Arc<FormConstraints>) -> std::io::Result<Self> {
         let content_type;
         if let Some(value) = headers.value("content-type") {
@@ -58,7 +58,7 @@ impl MultipartParser {
     }
 
     pub async fn parse(stream: Arc<Stream>, form_constraints: Arc<FormConstraints>,
-                                 headers: &mut Headers) -> Result<(FormData, Files), FormFieldError> {
+                                 headers: &Headers) -> Result<(FormData, Files), FormFieldError> {
         let mut parser = match MultipartParser::from(stream, headers,
                                                      form_constraints) {
             Ok(parser) => parser,
