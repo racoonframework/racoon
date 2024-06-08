@@ -7,3 +7,5 @@ pub use crate::core::response::JsonResponse;
 pub use crate::core::path::Path;
 pub use crate::core::shortcuts::SingleText;
 pub use crate::core::server::Server;
+pub use crate::view;
+pub use crate::wrap_view;
