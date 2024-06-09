@@ -33,6 +33,15 @@ pub struct Session {
     session_id: String,
 }
 
+impl Clone for Session {
+    fn clone(&self) -> Self {
+        Self {
+            session_manager: self.session_manager.clone(),
+            session_id: self.session_id.clone(),
+        }
+    }
+}
+
 impl Session {
     pub fn from(session_manager: Arc<SessionManager>, session_id: Option<&String>) -> Self {
         let session_id_value;
@@ -66,7 +75,7 @@ impl Session {
     /// use racoon::core::request::Request;
     ///
     /// async fn home(request: Request) {
-    ///   let session = request.session; 
+    ///   let session = request.session;
     ///   let _ = session.set("name", "John").await;
     /// }
     /// ```
