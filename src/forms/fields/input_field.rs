@@ -78,11 +78,16 @@ impl AbstractFields for InputField {
                             "Character length exceeds maximum size of {}",
                             *max_length
                         ));
-                        return Err(errors);
                     }
                     let mut lock = value_ref.lock().await;
                     *lock = Some(value);
+                } else {
+                    errors.push("This field is required.".to_string());
                 }
+            }
+
+            if errors.len() > 0 {
+                return Err(errors);
             }
 
             Ok(())
