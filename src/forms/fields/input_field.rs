@@ -51,7 +51,7 @@ impl AbstractFields for InputField {
         &mut self,
         form_data: &mut FormData,
         _: &mut Files,
-    ) -> FieldResult<Result<(), String>> {
+    ) -> FieldResult<Result<(), Vec<String>>> {
         let field_name = self.field_name.clone();
 
         let value;
@@ -69,16 +69,22 @@ impl AbstractFields for InputField {
 
         Box::new(Box::pin(async move {
             let required = required_ref.load(Ordering::Relaxed);
+            let mut errors: Vec<String> = vec![];
 
             if required {
                 if let Some(value) = value {
                     if value.len() > *max_length {
-                        return Err("Error".to_string());
+                        errors.push(format!(
+                            "Character length exceeds maximum size of {}",
+                            *max_length
+                        ));
+                        return Err(errors);
                     }
                     let mut lock = value_ref.lock().await;
                     *lock = Some(value);
                 }
             }
+
             Ok(())
         }))
     }
