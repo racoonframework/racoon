@@ -4,9 +4,9 @@ use std::future::Future;
 
 use crate::core::forms::{Files, FormData};
 
-pub type FieldResult<T> = Box<dyn Future<Output = T> + Sync + Unpin>;
+pub type FieldResult<T> = Box<dyn Future<Output = T> + Send + Sync + Unpin>;
 
-pub trait AbstractFields {
+pub trait AbstractFields: Sync + Send {
     fn field_name(&self) -> FieldResult<String>;
     fn validate(
         &mut self,
@@ -16,7 +16,7 @@ pub trait AbstractFields {
     fn wrap(&self) -> Box<dyn AbstractFields>;
 }
 
-pub type FormFields = Vec<Box<dyn AbstractFields>>;
+pub type FormFields = Vec<Box<dyn AbstractFields + Sync + Send>>;
 
 pub enum FieldError {
     Message(Vec<String>),

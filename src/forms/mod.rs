@@ -7,19 +7,19 @@ use crate::core::request::Request;
 
 use crate::forms::fields::AbstractFields;
 
-pub type FormFields = Vec<Box<dyn AbstractFields>>;
+pub type FormFields = Vec<Box<dyn AbstractFields + Sync + Send>>;
 
 pub type ValidationError = HashMap<String, Vec<String>>;
 
-pub trait FormValidator: Sized {
+pub trait FormValidator: Sized + Send {
     fn new() -> Self;
     fn form_fields(&mut self) -> FormFields;
     fn validate<'a>(
         mut self,
         request: &'a Request,
-    ) -> Box<dyn Future<Output = Result<Self, ValidationError>> + Unpin + 'a>
+    ) -> Box<dyn Future<Output = Result<Self, ValidationError>> + Sync + Send + Unpin + 'a>
     where
-        Self: 'a,
+        Self: 'a, Self: Sync,
     {
         let request = request.clone();
 
@@ -60,8 +60,8 @@ pub trait FormValidator: Sized {
         &mut self,
         _: &Request,
         _: &String,
-        _: &Box<dyn AbstractFields>,
-    ) -> Box<dyn Future<Output = Option<Result<(), Vec<String>>>> + Sync + Unpin + 'static> {
+        _: &Box<dyn AbstractFields + Sync + Send>,
+    ) -> Box<dyn Future<Output = Option<Result<(), Vec<String>>>> + Sync + Send + Unpin + 'static> {
         Box::new(Box::pin(async move { None }))
     }
 }
