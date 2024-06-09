@@ -13,7 +13,7 @@ pub trait AbstractFields {
         form_data: &mut FormData,
         files: &mut Files,
     ) -> FieldResult<Result<(), Vec<String>>>;
-    fn wrap(&self) -> Box<Self>;
+    fn wrap(&self) -> Box<dyn AbstractFields>;
 }
 
 pub type FormFields = Vec<Box<dyn AbstractFields>>;

@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
 
-use crate::forms::AbstractFields;
 use crate::forms::fields::FieldResult;
+use crate::forms::AbstractFields;
 
 #[derive(Clone)]
 pub struct InputField {
@@ -87,5 +87,9 @@ impl AbstractFields for InputField {
 
             Ok(())
         }))
+    }
+
+    fn wrap(&self) -> Box<dyn AbstractFields> {
+        Box::new(self.clone())
     }
 }
