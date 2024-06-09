@@ -36,7 +36,7 @@ impl Path {
 
         // Adds additional headers received from request struct.
 
-        let response_headers_from_request = response_headers_from_request_ref.lock().await; 
+        let response_headers_from_request = response_headers_from_request_ref.lock().await;
         let response_headers = response.get_headers();
 
         for (name, values) in response_headers_from_request.iter() {
@@ -62,6 +62,14 @@ pub type Paths = Vec<Path>;
 #[derive(Debug)]
 pub struct PathParams {
     params: HashMap<String, String>,
+}
+
+impl Clone for PathParams {
+    fn clone(&self) -> Self {
+        Self {
+            params: self.params.clone(),
+        }
+    }
 }
 
 impl SingleText for PathParams {
