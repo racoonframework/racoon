@@ -174,6 +174,27 @@ impl Request {
     }
 }
 
+impl Clone for Request {
+    fn clone(&self) -> Self {
+        Self {
+            stream: self.stream.clone(),
+            context: self.context.clone(),
+            scheme: self.scheme.clone(),
+            method: self.method.clone(),
+            path: self.path.clone(),
+            http_version: self.http_version.clone(),
+            headers: self.headers.clone(),
+            path_params: self.path_params.clone(),
+            query_params: self.query_params.clone(),
+            cookies: self.cookies.clone(),
+            session: self.session.clone(),
+            body_read: self.body_read.clone(),
+            form_constraints: self.form_constraints.clone(),
+            response_headers: self.response_headers.clone(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum RequestError {
     HeaderSizeExceed,
