@@ -10,7 +10,6 @@ documentation = "https://racoonframework.github.io"
 repository = "https://github.com/tejmagar/racoon/"
 keywords = ["web framework"]
 categories = ["web-programming", "web-programming::http-server", "web-programming::websocket"]
-license_file = "LICENSE.md"
 
 [dependencies]
 matchit = "0.8.0"
