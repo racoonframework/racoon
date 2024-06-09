@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
 
-use super::AbstractFields;
-use super::FieldResult;
+use crate::forms::AbstractFields;
+use crate::forms::fields::FieldResult;
 
 #[derive(Clone)]
 pub struct InputField {
