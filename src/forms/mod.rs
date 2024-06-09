@@ -11,13 +11,16 @@ pub type FormFields = Vec<Box<dyn AbstractFields>>;
 
 pub type ValidationError = HashMap<String, Vec<String>>;
 
-pub trait FormValidator {
+pub trait FormValidator: Sized {
     fn new() -> Self;
     fn form_fields(&mut self) -> FormFields;
-    fn validate(
-        &mut self,
-        request: &Request,
-    ) -> Box<dyn Future<Output = Result<(), ValidationError>> + '_> {
+    fn validate<'a>(
+        mut self,
+        request: &'a Request,
+    ) -> Box<dyn Future<Output = Result<Self, ValidationError>> + Unpin + 'a>
+    where
+        Self: 'a,
+    {
         let request = request.clone();
 
         Box::new(Box::pin(async move {
@@ -49,7 +52,7 @@ pub trait FormValidator {
                 return Err(errors);
             }
 
-            Ok(())
+            Ok(self)
         }))
     }
 
