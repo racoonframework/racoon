@@ -5,7 +5,7 @@ use std::future::Future;
 
 use crate::core::request::Request;
 
-use self::fields::AbstractFields;
+use crate::forms::fields::AbstractFields;
 
 pub type FormFields = Vec<Box<dyn AbstractFields>>;
 
