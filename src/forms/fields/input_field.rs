@@ -6,8 +6,9 @@ use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
 
-use crate::forms::fields::FieldResult;
 use crate::forms::AbstractFields;
+
+use crate::forms::fields::Fields;
 
 pub enum InputFieldError<'a> {
     MissingField(&'a String),
@@ -72,7 +73,7 @@ impl InputField {
 }
 
 impl AbstractFields for InputField {
-    fn field_name(&self) -> FieldResult<String> {
+    fn fields(&self) -> Fields<String> {
         let field_name = self.field_name.clone();
         Box::new(Box::pin(async move { field_name }))
     }
@@ -81,7 +82,7 @@ impl AbstractFields for InputField {
         &mut self,
         form_data: &mut FormData,
         _: &mut Files,
-    ) -> FieldResult<Result<(), Vec<String>>> {
+    ) -> Fields<Result<(), Vec<String>>> {
         let field_name = self.field_name.clone();
 
         let form_value;

@@ -29,7 +29,7 @@ pub trait FormValidator: Sized + Send {
             let mut errors = HashMap::new();
 
             for mut field in self.form_fields() {
-                let field_name = field.field_name().await;
+                let field_name = field.fields().await;
 
                 let result;
                 if let Some(custom_validate_result) =
