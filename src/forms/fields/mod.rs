@@ -4,15 +4,15 @@ use std::future::Future;
 
 use crate::core::forms::{Files, FormData};
 
-pub type Fields<T> = Box<dyn Future<Output = T> + Send + Sync + Unpin>;
+pub type FieldResult<T> = Box<dyn Future<Output = T> + Send + Sync + Unpin>;
 
 pub trait AbstractFields: Sync + Send {
-    fn fields(&self) -> Fields<String>;
+    fn field_name(&self) -> FieldResult<String>;
     fn validate(
         &mut self,
         form_data: &mut FormData,
         files: &mut Files,
-    ) -> Fields<Result<(), Vec<String>>>;
+    ) -> FieldResult<Result<(), Vec<String>>>;
     fn wrap(&self) -> Box<dyn AbstractFields>;
 }
 
