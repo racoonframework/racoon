@@ -46,10 +46,13 @@ impl InputField {
         self
     }
 
-    pub fn set_default<S: AsRef<str>>(mut self, value: S) -> Self {
+    pub fn set_default<S: AsRef<str>>(self, value: S) -> Self {
+        // Makes field optional
+        let mut instance = self.set_optional();
+
         let value = value.as_ref().to_string();
-        self.default_value = Some(value);
-        self
+        instance.default_value = Some(value);
+        instance
     }
 
     pub fn handle_error_message(
@@ -125,8 +128,8 @@ impl AbstractFields for InputField {
                 let mut lock = value_ref.lock().await;
                 *lock = Some(value);
             } else {
+                // Handles field missing error.
                 if required {
-                    // Handles field missing error.
                     let default_field_missing_error = "This field is missing.".to_string();
 
                     if let Some(error_handler) = error_handler {
