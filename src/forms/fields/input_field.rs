@@ -29,7 +29,7 @@ impl InputField {
         }
     }
 
-    pub async fn set_optional(self) -> Self {
+    pub fn set_optional(self) -> Self {
         self.required.store(false, Ordering::Relaxed);
         self
     }
