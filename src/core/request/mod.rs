@@ -21,6 +21,8 @@ use crate::core::cookie::{parse_cookies_from_header, Cookies};
 use crate::core::session::{Session, SessionManager};
 use crate::core::shortcuts::SingleText;
 
+use super::forms::FormFieldError;
+
 pub type QueryParams = HashMap<String, Vec<String>>;
 
 pub struct Request {
@@ -106,10 +108,16 @@ impl Request {
     }
 
     pub async fn parse(&self) -> (FormData, Files) {
-        self.parse_body(self.form_constraints.clone()).await
+        return match self.parse_body(self.form_constraints.clone()).await {
+            Ok((form_data, files)) => (form_data, files),
+            Err(_) => (FormData::new(), Files::new()),
+        };
     }
 
-    async fn parse_body(&self, form_constraints: Arc<FormConstraints>) -> (FormData, Files) {
+    pub async fn parse_body(
+        &self,
+        form_constraints: Arc<FormConstraints>,
+    ) -> Result<(FormData, Files), FormFieldError> {
         let form_data = FormData::new();
         let files = Files::new();
 
@@ -118,7 +126,7 @@ impl Request {
             content_type = value;
         } else {
             racoon_debug!("Content type is missing.");
-            return (form_data, files);
+            return Ok((form_data, files));
         }
 
         let body_read = self.body_read.clone();
@@ -139,11 +147,11 @@ impl Request {
             {
                 Ok((form_data, files)) => {
                     self.body_read.store(true, Ordering::Relaxed);
-                    (form_data, files)
+                    Ok((form_data, files))
                 }
                 Err(error) => {
                     racoon_error!("Error while parsing multipart body: {:?}", error);
-                    (form_data, files)
+                    Ok((form_data, files))
                 }
             };
         } else if content_type
@@ -151,6 +159,7 @@ impl Request {
             .starts_with("application/x-www-form-urlencoded")
         {
             racoon_debug!("Parsing with UrlEncoded parser.");
+
             return match UrlEncodedParser::parse(
                 self.stream.clone(),
                 &self.headers,
@@ -160,17 +169,17 @@ impl Request {
             {
                 Ok(form_data) => {
                     self.body_read.store(true, Ordering::Relaxed);
-                    (form_data, files)
+                    Ok((form_data, files))
                 }
                 Err(error) => {
                     racoon_error!("Error while parsing x-www-urlencoded form. {:?}", error);
-                    (form_data, files)
+                    Err(error)
                 }
             };
         }
 
         racoon_debug!("Unhandled enctype: {}", content_type);
-        (form_data, files)
+        Ok((form_data, files))
     }
 }
 
