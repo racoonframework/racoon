@@ -6,8 +6,8 @@ use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
 
-use crate::forms::AbstractFields;
 use crate::forms::fields::FieldResult;
+use crate::forms::AbstractFields;
 
 pub enum InputFieldError<'a> {
     MissingField(&'a String),
@@ -20,7 +20,7 @@ pub enum InputFieldError<'a> {
 #[derive(Clone)]
 pub struct InputField {
     field_name: String,
-    max_length: Arc<usize>,
+    max_length: Option<Arc<usize>>,
     required: Arc<AtomicBool>,
     value: Arc<Mutex<Option<String>>>,
     error_handler: Option<Arc<Box<fn(InputFieldError, Vec<String>) -> Vec<String>>>>,
@@ -28,17 +28,22 @@ pub struct InputField {
 }
 
 impl InputField {
-    pub fn with<S: AsRef<str>>(field_name: S, max_length: usize) -> Self {
+    pub fn new<S: AsRef<str>>(field_name: S) -> Self {
         let field_name = field_name.as_ref().to_string();
 
         Self {
             field_name,
-            max_length: Arc::new(max_length),
+            max_length: None,
             required: Arc::new(AtomicBool::new(true)),
             value: Arc::new(Mutex::new(None)),
             error_handler: None,
             default_value: None,
         }
+    }
+
+    pub fn max_length(mut self, max_length: usize) -> Self {
+        self.max_length = Some(Arc::new(max_length));
+        self
     }
 
     pub fn set_optional(self) -> Self {
@@ -106,25 +111,30 @@ impl AbstractFields for InputField {
 
             if let Some(value) = form_value {
                 // Handles value constraints
-
-                if value.len() > *max_length {
+                if let Some(max_length) = max_length {
                     // Checks maximum value length constraints
-                    let default_max_length_exceed_messsage =
-                        format!("Character length exceeds maximum size of {}", *max_length);
+                    if value.len() > *max_length {
+                        let default_max_length_exceed_messsage =
+                            format!("Character length exceeds maximum size of {}", *max_length);
 
-                    if let Some(error_handler) = error_handler {
-                        let max_length_exceed_error =
-                            InputFieldError::MaximumLengthExceed(&value, &field_name, &max_length);
+                        if let Some(error_handler) = error_handler {
+                            let max_length_exceed_error = InputFieldError::MaximumLengthExceed(
+                                &value,
+                                &field_name,
+                                &max_length,
+                            );
 
-                        let custom_errors = error_handler(
-                            max_length_exceed_error,
-                            vec![default_max_length_exceed_messsage],
-                        );
-                        errors.extend(custom_errors);
-                    } else {
-                        errors.push(default_max_length_exceed_messsage);
+                            let custom_errors = error_handler(
+                                max_length_exceed_error,
+                                vec![default_max_length_exceed_messsage],
+                            );
+                            errors.extend(custom_errors);
+                        } else {
+                            errors.push(default_max_length_exceed_messsage);
+                        }
                     }
                 }
+
                 let mut lock = value_ref.lock().await;
                 *lock = Some(value);
             } else {
