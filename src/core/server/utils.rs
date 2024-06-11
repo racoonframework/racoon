@@ -1,4 +1,4 @@
-use std::io::BufReader;
+use std::{ffi::OsStr, io::BufReader};
 use std::sync::Arc;
 
 use rustls_pemfile::{certs, pkcs8_private_keys};
@@ -6,7 +6,7 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::racoon_info;
 
-pub fn tls_acceptor_from_path<S: AsRef<str>>(
+pub fn tls_acceptor_from_path<S: AsRef<OsStr>>(
     certificate_path: S,
     private_key_path: S,
 ) -> std::io::Result<TlsAcceptor> {

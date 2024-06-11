@@ -3,6 +3,7 @@ pub mod utils;
 use std::any::Any;
 use std::collections::HashMap;
 use std::env;
+use std::ffi::OsStr;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -150,10 +151,10 @@ impl Server {
         instance
     }
 
-    pub fn bind_tls<S: AsRef<str>>(
+    pub fn bind_tls<S: AsRef<str>, P: AsRef<OsStr>>(
         address: S,
-        certificate_path: S,
-        private_key_path: S,
+        certificate_path: P,
+        private_key_path: P,
     ) -> std::io::Result<Self> {
         let acceptor = utils::tls_acceptor_from_path(certificate_path, private_key_path)?;
         let mut instance = Server::initialize_default();
