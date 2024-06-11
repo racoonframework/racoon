@@ -27,11 +27,11 @@ impl UrlEncodedParser {
             content_length = match value.parse::<usize>() {
                 Ok(value) => value,
                 Err(_) => {
-                    return Err(FormFieldError::Others("Invalid content length header.".to_owned()));
+                    return Err(FormFieldError::Others(None, "Invalid content length header.".to_owned()));
                 }
             }
         } else {
-            return Err(FormFieldError::Others("Content-Length header is missing.".to_owned()));
+            return Err(FormFieldError::Others(None, "Content-Length header is missing.".to_owned()));
         }
 
         Ok(UrlEncodedParser {
@@ -45,7 +45,7 @@ impl UrlEncodedParser {
         let max_body_size = self.form_constraints.max_body_size(self.stream.buffer_size().await);
 
         if self.content_length > max_body_size {
-            return Err(FormFieldError::MaxValueSizeExceed);
+            return Err(FormFieldError::MaxBodySizeExceed);
         }
 
         let mut buffer = vec![];
@@ -59,7 +59,7 @@ impl UrlEncodedParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string()));
                 }
             };
             buffer.extend(chunk);

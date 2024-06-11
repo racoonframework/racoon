@@ -4,19 +4,13 @@ use std::sync::Arc;
 use regex::Regex;
 
 use crate::core::headers;
-use crate::core::headers::{Headers, HeaderValue};
+use crate::core::headers::{HeaderValue, Headers};
 
 use crate::core::stream::Stream;
 
 use tempfile::NamedTempFile;
 
-use crate::core::forms::{
-    FileField,
-    Files,
-    FormConstraints,
-    FormData,
-    FormFieldError
-};
+use crate::core::forms::{FileField, Files, FormConstraints, FormData, FormFieldError};
 
 #[derive(Debug)]
 pub struct FormPart {
@@ -27,7 +21,6 @@ pub struct FormPart {
     pub file: Option<NamedTempFile>,
 }
 
-
 pub struct MultipartParser {
     stream: Arc<Stream>,
     form_constraints: Arc<FormConstraints>,
@@ -37,8 +30,11 @@ pub struct MultipartParser {
 }
 
 impl MultipartParser {
-    pub fn from(stream: Arc<Stream>, headers: &Headers,
-                form_constraints: Arc<FormConstraints>) -> std::io::Result<Self> {
+    pub fn from(
+        stream: Arc<Stream>,
+        headers: &Headers,
+        form_constraints: Arc<FormConstraints>,
+    ) -> std::io::Result<Self> {
         let content_type;
         if let Some(value) = headers.value("content-type") {
             content_type = value;
@@ -57,13 +53,15 @@ impl MultipartParser {
         })
     }
 
-    pub async fn parse(stream: Arc<Stream>, form_constraints: Arc<FormConstraints>,
-                                 headers: &Headers) -> Result<(FormData, Files), FormFieldError> {
-        let mut parser = match MultipartParser::from(stream, headers,
-                                                     form_constraints) {
+    pub async fn parse(
+        stream: Arc<Stream>,
+        form_constraints: Arc<FormConstraints>,
+        headers: &Headers,
+    ) -> Result<(FormData, Files), FormFieldError> {
+        let mut parser = match MultipartParser::from(stream, headers, form_constraints) {
             Ok(parser) => parser,
             Err(error) => {
-                return Err(FormFieldError::Others(error.to_string()));
+                return Err(FormFieldError::Others(None, error.to_string()));
             }
         };
 
@@ -78,7 +76,10 @@ impl MultipartParser {
             if let Some(value) = form_part.name {
                 field_name = value;
             } else {
-                return Err(FormFieldError::Others("Field name is missing.".to_owned()));
+                return Err(FormFieldError::Others(
+                    None,
+                    "Field name is missing.".to_owned(),
+                ));
             }
 
             if let Some(filename) = form_part.filename {
@@ -86,10 +87,16 @@ impl MultipartParser {
                 if let Some(file) = form_part.file {
                     named_temp_file = file;
                 } else {
-                    return Err(FormFieldError::Others("Parsing error: file is missing.".to_owned()));
+                    return Err(FormFieldError::Others(
+                        Some(field_name.clone()),
+                        "Parsing error: file is missing.".to_owned(),
+                    ));
                 }
 
-                let temp_file = FileField { name: filename, temp_file: named_temp_file };
+                let temp_file = FileField {
+                    name: filename,
+                    temp_file: named_temp_file,
+                };
                 if let Some(files) = files.get_mut(&field_name) {
                     files.push(temp_file);
                 } else {
@@ -113,11 +120,16 @@ impl MultipartParser {
 
     pub async fn next_form_header(&mut self) -> Result<FormPart, FormFieldError> {
         if !self.allow_next_header_read {
-            return Err(FormFieldError::Others("Form part body not read.".to_string()));
+            return Err(FormFieldError::Others(
+                None,
+                "Form part body not read.".to_string(),
+            ));
         }
 
         let stream = self.stream.clone();
-        let max_header_size = self.form_constraints.max_header_size(stream.buffer_size().await);
+        let max_header_size = self
+            .form_constraints
+            .max_header_size(stream.buffer_size().await);
         let scan_boundary = format!("--{}\r\n", &self.boundary);
         let scan_boundary_bytes = scan_boundary.as_bytes();
 
@@ -135,7 +147,7 @@ impl MultipartParser {
                 let chunk = match stream.read_chunk().await {
                     Ok(bytes) => bytes,
                     Err(error) => {
-                        return Err(FormFieldError::Others(error.to_string()));
+                        return Err(FormFieldError::Others(None, error.to_string()));
                     }
                 };
                 bytes_read += chunk.len();
@@ -144,7 +156,8 @@ impl MultipartParser {
 
             if !buffer.starts_with(scan_boundary_bytes) {
                 return Err(FormFieldError::Others(
-                    format!("Boundary does not start with {}", scan_boundary)
+                    None,
+                    format!("Boundary does not start with {}", scan_boundary),
                 ));
             }
 
@@ -161,7 +174,8 @@ impl MultipartParser {
                 return Err(FormFieldError::MaxHeaderSizeExceed);
             }
 
-            let scan_result = buffer.windows(FORM_PART_HEADER_TERMINATOR.len())
+            let scan_result = buffer
+                .windows(FORM_PART_HEADER_TERMINATOR.len())
                 .position(|window| window == FORM_PART_HEADER_TERMINATOR);
 
             if let Some(position) = scan_result {
@@ -177,7 +191,7 @@ impl MultipartParser {
                 let chunk = match stream.read_chunk().await {
                     Ok(bytes) => bytes,
                     Err(error) => {
-                        return Err(FormFieldError::Others(error.to_string()));
+                        return Err(FormFieldError::Others(None, error.to_string()));
                     }
                 };
                 bytes_read += chunk.len();
@@ -186,9 +200,15 @@ impl MultipartParser {
         }
     }
 
-    pub async fn next_form_value(&mut self, form_part: &mut FormPart) -> Result<bool, FormFieldError> {
+    pub async fn next_form_value(
+        &mut self,
+        form_part: &mut FormPart,
+    ) -> Result<bool, FormFieldError> {
         if self.allow_next_header_read {
-            return Err(FormFieldError::Others("Form part header is not read.".to_owned()));
+            return Err(FormFieldError::Others(
+                None,
+                "Form part header is not read.".to_owned(),
+            ));
         }
 
         if form_part.filename.is_some() {
@@ -198,18 +218,18 @@ impl MultipartParser {
         }
     }
 
-
     pub async fn parse_file(&mut self, form_part: &mut FormPart) -> Result<bool, FormFieldError> {
         let form_constraints = self.form_constraints.clone();
         let field_name;
         if let Some(value) = &form_part.name {
             field_name = value.to_owned();
         } else {
-            return Err(FormFieldError::Others("Field name is missing".to_owned()));
+            return Err(FormFieldError::Others(None, "Field name is missing".to_owned()));
         }
 
         // Form constraints
-        let max_file_size = form_constraints.max_size_for_file(&field_name, self.stream.buffer_size().await);
+        let max_file_size =
+            form_constraints.max_size_for_file(&field_name, self.stream.buffer_size().await);
         let mut bytes_read = 0;
 
         let value_terminator = format!("\r\n--{}", self.boundary);
@@ -218,7 +238,7 @@ impl MultipartParser {
         let mut temp_file = match NamedTempFile::new() {
             Ok(file) => file,
             Err(error) => {
-                return Err(FormFieldError::Others(error.to_string()));
+                return Err(FormFieldError::Others(None, error.to_string()));
             }
         };
         let mut scan_buffer = vec![];
@@ -227,10 +247,11 @@ impl MultipartParser {
 
         loop {
             if bytes_read > max_file_size {
-                return Err(FormFieldError::MaxFileSizeExceed);
+                return Err(FormFieldError::MaxFileSizeExceed(field_name.clone()));
             }
 
-            let scan_result = scan_buffer.windows(value_terminator_bytes.len())
+            let scan_result = scan_buffer
+                .windows(value_terminator_bytes.len())
                 .position(|window| window == value_terminator_bytes);
 
             if let Some(matched_position) = scan_result {
@@ -239,17 +260,20 @@ impl MultipartParser {
                 // If extra terminator byte offset is not present, it does not matter whether field
                 // end is found or not. Can be scanned again.
 
-                if scan_buffer.len() >= matched_position + value_terminator_bytes.len() + FORM_PART_END.len() {
+                if scan_buffer.len()
+                    >= matched_position + value_terminator_bytes.len() + FORM_PART_END.len()
+                {
                     let to_copy_position = matched_position;
                     let to_copy = &scan_buffer[..to_copy_position];
                     match temp_file.write_all(to_copy) {
                         Ok(()) => {}
                         Err(error) => {
-                            return Err(FormFieldError::Others(error.to_string()));
+                            return Err(FormFieldError::Others(None, error.to_string()));
                         }
                     };
 
-                    scan_buffer = (&scan_buffer[to_copy_position + value_terminator_bytes.len()..]).to_vec();
+                    scan_buffer =
+                        (&scan_buffer[to_copy_position + value_terminator_bytes.len()..]).to_vec();
                     return if &scan_buffer[..FORM_PART_END.len()] == FORM_PART_END {
                         // Request body completed
                         form_part.file = Some(temp_file);
@@ -274,7 +298,7 @@ impl MultipartParser {
                 match temp_file.write_all(&scan_buffer[..to_copy_position]) {
                     Ok(()) => {}
                     Err(error) => {
-                        return Err(FormFieldError::Others(error.to_string()));
+                        return Err(FormFieldError::Others(None, error.to_string()));
                     }
                 };
                 scan_buffer = (&scan_buffer[to_copy_position..]).to_vec();
@@ -284,7 +308,7 @@ impl MultipartParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string()));
                 }
             };
             bytes_read += chunk.len();
@@ -297,10 +321,12 @@ impl MultipartParser {
         if let Some(value) = &form_part.name {
             field_name = value.to_owned();
         } else {
-            return Err(FormFieldError::Others("Field name is missing.".to_owned()));
+            return Err(FormFieldError::Others(None, "Field name is missing.".to_owned()));
         }
 
-        let max_value_size = self.form_constraints.max_size_for_field(&field_name, self.stream.buffer_size().await);
+        let max_value_size = self
+            .form_constraints
+            .max_size_for_field(&field_name, self.stream.buffer_size().await);
         let scan_boundary = format!("\r\n--{}", self.boundary);
         let scan_boundary_bytes = scan_boundary.as_bytes();
 
@@ -313,9 +339,10 @@ impl MultipartParser {
 
         loop {
             if bytes_read > max_value_size {
-                return Err(FormFieldError::MaxHeaderSizeExceed);
+                return Err(FormFieldError::MaxValueSizeExceed(field_name));
             }
-            let scan_result = buffer.windows(scan_boundary_bytes.len())
+            let scan_result = buffer
+                .windows(scan_boundary_bytes.len())
                 .position(|window| window == scan_boundary_bytes);
 
             if let Some(position) = scan_result {
@@ -324,7 +351,9 @@ impl MultipartParser {
                     let mut to_copy_range = to_copy.len();
 
                     // Some clients sends single CRLF and some double CRLF line breaks
-                    if to_copy.len() > 1 && &to_copy[..to_copy.len() - CRLF_BREAK.len()] == CRLF_BREAK {
+                    if to_copy.len() > 1
+                        && &to_copy[..to_copy.len() - CRLF_BREAK.len()] == CRLF_BREAK
+                    {
                         to_copy_range -= 1;
                     }
 
@@ -335,6 +364,7 @@ impl MultipartParser {
                     form_part.value = Some(value);
 
                     return if &buffer[..FORM_PART_END.len()] == FORM_PART_END {
+
                         self.allow_next_header_read = true;
                         Ok(true)
                     } else {
@@ -351,7 +381,7 @@ impl MultipartParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string()));
                 }
             };
             bytes_read += chunk.len();
@@ -381,16 +411,18 @@ pub fn parse_form_part_header(header_bytes: &[u8]) -> Result<FormPart, FormField
 
     loop {
         let to_scan = &header_bytes[last_scanned_position..];
-        let scan_result = to_scan.windows(HEADER_LINE_TERMINATOR.len())
+        let scan_result = to_scan
+            .windows(HEADER_LINE_TERMINATOR.len())
             .position(|window| window == HEADER_LINE_TERMINATOR);
 
         if let Some(relative_position) = scan_result {
             // One header found
-            let header_line = &header_bytes[last_scanned_position..last_scanned_position + relative_position];
+            let header_line =
+                &header_bytes[last_scanned_position..last_scanned_position + relative_position];
             match parse_form_part_header_line(header_line, &mut form_part) {
                 Ok(()) => {}
                 Err(error) => {
-                    return Err(FormFieldError::Others(error.to_string()));
+//
                 }
             };
             last_scanned_position += relative_position + HEADER_LINE_TERMINATOR.len();
@@ -400,7 +432,10 @@ pub fn parse_form_part_header(header_bytes: &[u8]) -> Result<FormPart, FormField
     }
 }
 
-fn parse_form_part_header_line(header_line: &[u8], form_part: &mut FormPart) -> std::io::Result<()> {
+fn parse_form_part_header_line(
+    header_line: &[u8],
+    form_part: &mut FormPart,
+) -> std::io::Result<()> {
     let header_line = String::from_utf8_lossy(header_line);
     let parts: Vec<&str> = header_line.splitn(2, ":").collect();
 
@@ -430,12 +465,17 @@ fn parse_form_part_header_line(header_line: &[u8], form_part: &mut FormPart) -> 
     Ok(())
 }
 
-pub fn parse_content_disposition_value(value: &str, form_part: &mut FormPart) -> std::io::Result<()> {
+pub fn parse_content_disposition_value(
+    value: &str,
+    form_part: &mut FormPart,
+) -> std::io::Result<()> {
     let value = value.trim();
 
     if !value.starts_with("form-data;") {
         // Not a valid Content-Deposition value for form part header
-        return Err(std::io::Error::other("Not a valid Content-Deposition value for form part header"));
+        return Err(std::io::Error::other(
+            "Not a valid Content-Deposition value for form part header",
+        ));
     }
 
     let remaining = value.strip_prefix("form-data;").unwrap().trim();
@@ -454,7 +494,9 @@ pub fn parse_content_disposition_value(value: &str, form_part: &mut FormPart) ->
     }
 
     if form_part.name.is_none() {
-        return Err(std::io::Error::other("Field name is missing in form part header."));
+        return Err(std::io::Error::other(
+            "Field name is missing in form part header.",
+        ));
     }
 
     Ok(())
