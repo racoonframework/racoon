@@ -219,10 +219,8 @@ impl AbstractFields for InputField {
 
 #[cfg(test)]
 pub mod test {
-    use crate::{
-        core::forms::{Files, FormData},
-        forms::fields::AbstractFields,
-    };
+    use crate::core::forms::{Files, FormData};
+    use crate::forms::fields::AbstractFields;
 
     use super::InputField;
 
