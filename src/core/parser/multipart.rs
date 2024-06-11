@@ -422,7 +422,7 @@ pub fn parse_form_part_header(header_bytes: &[u8]) -> Result<FormPart, FormField
             match parse_form_part_header_line(header_line, &mut form_part) {
                 Ok(()) => {}
                 Err(error) => {
-//
+                    return Err(FormFieldError::Others(None, error.to_string()));
                 }
             };
             last_scanned_position += relative_position + HEADER_LINE_TERMINATOR.len();
