@@ -260,7 +260,7 @@ impl Server {
     }
 
     /// Runs server in blocking thread.
-    pub async fn run(&mut self) -> std::io::Result<&mut Self> {
+    pub async fn run(&mut self) -> std::io::Result<()> {
         let session_manager: Arc<SessionManager>;
         if let Some(custom_session_manager) = &self.session_manager {
             session_manager = custom_session_manager.clone();
@@ -369,7 +369,7 @@ impl Server {
             .await?;
         }
 
-        Ok(self)
+        Ok(())
     }
 
     async fn wait_shutdown(shutdown_lock: ShutdownLock) {
