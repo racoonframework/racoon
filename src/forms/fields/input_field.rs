@@ -17,13 +17,15 @@ pub enum InputFieldError<'a> {
     MaximumLengthExceed(&'a String, &'a String, &'a usize),
 }
 
+pub type ErrorHandler = Box<fn(InputFieldError, Vec<String>) -> Vec<String>>;
+
 #[derive(Clone)]
 pub struct InputField {
     field_name: String,
     max_length: Option<Arc<usize>>,
     required: Arc<AtomicBool>,
-    value: Arc<Mutex<Option<String>>>,
-    error_handler: Option<Arc<Box<fn(InputFieldError, Vec<String>) -> Vec<String>>>>,
+    values: Arc<Mutex<Option<Vec<String>>>>,
+    error_handler: Option<Arc<ErrorHandler>>,
     default_value: Option<String>,
 }
 
@@ -35,7 +37,7 @@ impl InputField {
             field_name,
             max_length: None,
             required: Arc::new(AtomicBool::new(true)),
-            value: Arc::new(Mutex::new(None)),
+            values: Arc::new(Mutex::new(None)),
             error_handler: None,
             default_value: None,
         }
@@ -70,9 +72,57 @@ impl InputField {
     }
 
     pub async fn value(&self) -> Option<String> {
-        let value_ref = self.value.clone();
-        let mut lock = value_ref.lock().await;
-        lock.take()
+        let value_ref = self.values.clone();
+        let mut values = value_ref.lock().await;
+
+        if let Some(values) = values.as_mut() {
+            let value = values.remove(0);
+            return Some(value);
+        }
+
+        None
+    }
+
+    pub async fn values(&self) -> Option<Vec<String>> {
+        let value_ref = self.values.clone();
+        let mut values = value_ref.lock().await;
+        values.take()
+    }
+
+    fn validate_input_length(
+        field_name: &String,
+        values: &Vec<String>,
+        error_handler: Option<Arc<ErrorHandler>>,
+        max_length: Option<Arc<usize>>,
+        errors: &mut Vec<String>,
+    ) {
+        let value;
+        if let Some(value_ref) = values.get(0) {
+            value = value_ref;
+        } else {
+            return;
+        }
+
+        if let Some(max_length) = max_length {
+            // Checks maximum value length constraints
+            if value.len() > *max_length {
+                let default_max_length_exceed_messsage =
+                    format!("Character length exceeds maximum size of {}", *max_length);
+
+                if let Some(error_handler) = error_handler {
+                    let max_length_exceed_error =
+                        InputFieldError::MaximumLengthExceed(&value, &field_name, &max_length);
+
+                    let custom_errors = error_handler(
+                        max_length_exceed_error,
+                        vec![default_max_length_exceed_messsage],
+                    );
+                    errors.extend(custom_errors);
+                } else {
+                    errors.push(default_max_length_exceed_messsage);
+                }
+            }
+        }
     }
 }
 
@@ -89,17 +139,17 @@ impl AbstractFields for InputField {
     ) -> FieldResult<Result<(), Vec<String>>> {
         let field_name = self.field_name.clone();
 
-        let form_value;
+        let form_values;
 
         // Takes value from form field
-        if let Some(mut values) = form_data.remove(&field_name) {
-            form_value = Some(values.remove(0));
+        if let Some(values) = form_data.remove(&field_name) {
+            form_values = Some(values);
         } else {
-            form_value = None;
+            form_values = None;
         }
 
         let required_ref = self.required.clone();
-        let value_ref = self.value.clone();
+        let value_ref = self.values.clone();
         let max_length = self.max_length.clone();
         let default_value = self.default_value.take();
 
@@ -109,50 +159,48 @@ impl AbstractFields for InputField {
             let required = required_ref.load(Ordering::Relaxed);
             let mut errors: Vec<String> = vec![];
 
-            if let Some(value) = form_value {
-                // Handles value constraints
-                if let Some(max_length) = max_length {
-                    // Checks maximum value length constraints
-                    if value.len() > *max_length {
-                        let default_max_length_exceed_messsage =
-                            format!("Character length exceeds maximum size of {}", *max_length);
+            let is_empty;
+            if let Some(values) = form_values {
+                InputField::validate_input_length(
+                    &field_name,
+                    &values,
+                    error_handler.clone(),
+                    max_length,
+                    &mut errors,
+                );
 
-                        if let Some(error_handler) = error_handler {
-                            let max_length_exceed_error = InputFieldError::MaximumLengthExceed(
-                                &value,
-                                &field_name,
-                                &max_length,
-                            );
+                {
+                    // Handles value constraints
+                    let mut lock = value_ref.lock().await;
+                    is_empty = values.is_empty();
 
-                            let custom_errors = error_handler(
-                                max_length_exceed_error,
-                                vec![default_max_length_exceed_messsage],
-                            );
-                            errors.extend(custom_errors);
-                        } else {
-                            errors.push(default_max_length_exceed_messsage);
-                        }
+                    if !is_empty {
+                        *lock = Some(values);
                     }
                 }
-
-                let mut lock = value_ref.lock().await;
-                *lock = Some(value);
             } else {
-                // Handles field missing error.
-                if required {
-                    let default_field_missing_error = "This field is missing.".to_string();
+                is_empty = true;
+            }
 
-                    if let Some(error_handler) = error_handler {
-                        let field_missing_error = InputFieldError::MissingField(&field_name);
-                        let custom_errors =
-                            error_handler(field_missing_error, vec![default_field_missing_error]);
-                        errors.extend(custom_errors);
-                    } else {
-                        errors.push(default_field_missing_error);
-                    }
+            // Handles field missing error.
+            if required && is_empty {
+                let default_field_missing_error = "This field is missing.".to_string();
+
+                if let Some(error_handler) = error_handler {
+                    let field_missing_error = InputFieldError::MissingField(&field_name);
+                    let custom_errors =
+                        error_handler(field_missing_error, vec![default_field_missing_error]);
+                    errors.extend(custom_errors);
                 } else {
-                    let mut lock = value_ref.lock().await;
-                    *lock = default_value;
+                    errors.push(default_field_missing_error);
+                }
+            } else {
+                if let Some(default_value) = default_value {
+                    {
+                        let mut lock = value_ref.lock().await;
+                        let values = vec![default_value];
+                        *lock = Some(values);
+                    }
                 }
             }
 
@@ -166,5 +214,31 @@ impl AbstractFields for InputField {
 
     fn wrap(&self) -> Box<dyn AbstractFields> {
         Box::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use crate::{
+        core::forms::{Files, FormData},
+        forms::fields::AbstractFields,
+    };
+
+    use super::InputField;
+
+    #[tokio::test]
+    async fn test_validate_default() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut input_field = InputField::new("name")
+            .set_default("John")
+            .set_optional()
+            .max_length(100);
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+
+        let value = input_field.value().await;
+        assert_eq!(value, Some("John".to_string()));
     }
 }
