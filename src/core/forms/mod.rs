@@ -128,7 +128,7 @@ impl FormConstraints {
 pub enum FormFieldError {
     MaxBodySizeExceed,
     MaxHeaderSizeExceed,
-    MaxFileSizeExceed,
-    MaxValueSizeExceed,
-    Others(String),
+    MaxFileSizeExceed(String),
+    MaxValueSizeExceed(String),
+    Others(Option<String>, String),
 }
