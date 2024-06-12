@@ -2,8 +2,8 @@
 
 [![build](https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg)](https://github.com/racoonframework/racoon/actions/workflows/build.yml)
 
-Racoon is fast, fully customizable lightweight web framework for rust developers.
-[Learn Racoon](https://tejmagar.github.io/racoon/)
+Racoon is a fast, fully customizable web framework for Rust focusing on simplicity.
+[Learn Racoon](https://racoonframework.github.io)
 
 ## Installation
 
