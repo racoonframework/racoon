@@ -80,7 +80,7 @@ impl<T: FromAny + Sync + Send + 'static> InputField<T> {
             field_name,
             max_length: None,
             min_length: None,
-            result: Arc::new(Mutex::new(Some(Box::new(None::<String>)))),
+            result: Arc::new(Mutex::new(None)),
             error_handler: None,
             default_value: None,
             validated: Arc::new(AtomicBool::from(false)),
