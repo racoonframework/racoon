@@ -46,7 +46,7 @@ impl FromAny for Option<String> {
             return Some(Some(value));
         } else {
             // Here outer Some denotes values are correctly converted to type T with value None.
-            // Since fields are missing, default valus is None.
+            // Since fields are missing, default value is None.
             return Some(None);
         }
     }
