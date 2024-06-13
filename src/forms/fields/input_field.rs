@@ -303,4 +303,33 @@ pub mod test {
         let value = input_field.value().await;
         assert_eq!(value, "John");
     }
+
+    #[tokio::test]
+    async fn test_validate_optional() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut input_field: InputField<Option<String>> = InputField::new("name").max_length(100);
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+
+        let value = input_field.value().await;
+        assert_eq!(value, None);
+
+        // With values
+        form_data.insert("name".to_string(), vec!["John".to_string()]);
+        let mut input_field2: InputField<Option<String>> = InputField::new("name").max_length(100);
+        let result = input_field2.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(Some("John".to_string()), input_field2.value().await);
+    }
+
+    #[tokio::test]
+    async fn test_validation_error() {
+        let mut input_field: InputField<String> = InputField::new("name").max_length(100);
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+    }
 }
