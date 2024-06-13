@@ -55,6 +55,7 @@ impl FromAny for Option<String> {
 pub struct InputField<T> {
     field_name: String,
     max_length: Option<Arc<usize>>,
+    min_length: Option<Arc<usize>>,
     result: Arc<Mutex<Option<Box<dyn Any + Send + Sync + 'static>>>>,
     error_handler: Option<Arc<ErrorHandler>>,
     default_value: Option<String>,
@@ -69,6 +70,7 @@ impl<T: FromAny + Sync + Send + 'static> InputField<T> {
         Self {
             field_name,
             max_length: None,
+            min_length: None,
             result: Arc::new(Mutex::new(Some(Box::new(None::<String>)))),
             error_handler: None,
             default_value: None,
@@ -79,6 +81,11 @@ impl<T: FromAny + Sync + Send + 'static> InputField<T> {
 
     pub fn max_length(mut self, max_length: usize) -> Self {
         self.max_length = Some(Arc::new(max_length));
+        self
+    }
+
+    pub fn min_length(mut self, min_length: usize) -> Self {
+        self.min_length = Some(Arc::new(min_length));
         self
     }
 
@@ -125,6 +132,7 @@ fn validate_input_length(
     values: &Vec<String>,
     error_handler: Option<Arc<ErrorHandler>>,
     max_length: Option<Arc<usize>>,
+    min_length: Option<Arc<usize>>,
     errors: &mut Vec<String>,
 ) {
     let value;
@@ -140,9 +148,30 @@ fn validate_input_length(
             let default_max_length_exceed_messsage =
                 format!("Character length exceeds maximum size of {}", *max_length);
 
-            if let Some(error_handler) = error_handler {
+            if let Some(error_handler) = error_handler.clone() {
                 let max_length_exceed_error =
                     InputFieldError::MaximumLengthExceed(&value, &field_name, &max_length);
+
+                let custom_errors = error_handler(
+                    max_length_exceed_error,
+                    vec![default_max_length_exceed_messsage],
+                );
+                errors.extend(custom_errors);
+            } else {
+                errors.push(default_max_length_exceed_messsage);
+            }
+        }
+    }
+
+    if let Some(min_length) = min_length {
+        // Checks maximum value length constraints
+        if value.len() < *min_length {
+            let default_max_length_exceed_messsage =
+                format!("Text length is less then {}", *min_length);
+
+            if let Some(error_handler) = error_handler.clone() {
+                let max_length_exceed_error =
+                    InputFieldError::MinimumLengthRequired(&value, &field_name, &min_length);
 
                 let custom_errors = error_handler(
                     max_length_exceed_error,
@@ -161,6 +190,7 @@ impl<T: FromAny> Clone for InputField<T> {
         Self {
             field_name: self.field_name.clone(),
             max_length: self.max_length.clone(),
+            min_length: self.min_length.clone(),
             error_handler: self.error_handler.clone(),
             result: self.result.clone(),
             default_value: self.default_value.clone(),
@@ -193,6 +223,7 @@ impl<T: FromAny + Sync + Send + 'static> AbstractFields for InputField<T> {
         }
 
         let max_length = self.max_length.clone();
+        let min_length = self.min_length.clone();
         let default_value = self.default_value.take();
         let validated = self.validated.clone();
         let result = self.result.clone();
@@ -209,6 +240,7 @@ impl<T: FromAny + Sync + Send + 'static> AbstractFields for InputField<T> {
                     &values,
                     error_handler.clone(),
                     max_length,
+                    min_length,
                     &mut errors,
                 );
 
@@ -322,6 +354,35 @@ pub mod test {
         let result = input_field2.validate(&mut form_data, &mut files).await;
         assert_eq!(true, result.is_ok());
         assert_eq!(Some("John".to_string()), input_field2.value().await);
+    }
+
+    #[tokio::test]
+    async fn test_value_length() {
+        // Validate long text
+        let mut input_field: InputField<String> = InputField::new("name").max_length(10);
+        let mut form_data = FormData::new();
+
+        const LONG_PARAGRAPH: &str = r#"
+        Lorem ipsum dolor sit amet, qui minim labore adipisicing minim sint cillum sint consectetur cupidatat.
+        "#;
+        form_data.insert("name".to_string(), vec![LONG_PARAGRAPH.to_string()]);
+
+        let mut files = Files::new();
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+
+        // Validate long text
+        let mut input_field2: InputField<String> = InputField::new("name").min_length(100);
+        let mut form_data = FormData::new();
+
+        const SHORT_PARAGRAPH: &str = r#"
+        Lorem ipsum dolor sit amet.
+        "#;
+        form_data.insert("name".to_string(), vec![SHORT_PARAGRAPH.to_string()]);
+
+        let mut files = Files::new();
+        let result = input_field2.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
     }
 
     #[tokio::test]
