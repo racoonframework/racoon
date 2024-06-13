@@ -52,14 +52,23 @@ impl FromAny for Option<String> {
     }
 }
 
+type BoxResult = Box<dyn Any + Send + Sync + 'static>;
+
 pub struct InputField<T> {
     field_name: String,
+    /// Maximum allowed text size.
     max_length: Option<Arc<usize>>,
+    /// Minimum length size for valid input field.
     min_length: Option<Arc<usize>>,
-    result: Arc<Mutex<Option<Box<dyn Any + Send + Sync + 'static>>>>,
+    /// Option enum holds the value of type T.
+    result: Arc<Mutex<Option<BoxResult>>>,
+    /// Custom function callback for handling error.
     error_handler: Option<Arc<ErrorHandler>>,
+    /// Default value if no form field value received.
     default_value: Option<String>,
+    /// True if validated successfully else false.
     validated: Arc<AtomicBool>,
+    /// Dummy type for compile time and runtime check.
     phantom: PhantomData<T>,
 }
 
