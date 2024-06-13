@@ -254,7 +254,7 @@ impl<T: FromAny + Sync + Send + 'static> AbstractFields for InputField<T> {
                     *result_lock = Some(Box::new(value_t.unwrap()));
                 } else {
                     // Above conditions are satisfied however there are no values stored.
-                    // Probably Optional type.
+                    // Probably Optional type without default value.
                     let value_t = T::from_vec(&mut vec![]);
                     *result_lock = Some(Box::new(value_t.unwrap()));
                 }
