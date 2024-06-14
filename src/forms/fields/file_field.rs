@@ -27,11 +27,13 @@ impl UploadedFile {
     }
 }
 
+pub type PostValidator<T> = Box<fn(T) -> Result<T, Vec<String>>>;
 type BoxResult = Box<dyn Any + Sync + Send + 'static>;
 
 pub struct FileField<T> {
     field_name: String,
     result: Arc<Mutex<Option<BoxResult>>>,
+    post_validator: Option<PostValidator<T>>,
     validated: Arc<AtomicBool>,
     phantom: PhantomData<T>,
 }
@@ -41,6 +43,7 @@ impl<T> Clone for FileField<T> {
         Self {
             field_name: self.field_name.clone(),
             result: self.result.clone(),
+            post_validator: self.post_validator.clone(),
             validated: self.validated.clone(),
             phantom: self.phantom.clone(),
         }
@@ -83,9 +86,15 @@ impl<T: Sync + Send + 'static> FileField<T> {
         Self {
             field_name,
             result: Arc::new(Mutex::new(None)),
+            post_validator: None,
             validated: Arc::new(AtomicBool::from(false)),
             phantom: PhantomData,
         }
+    }
+
+    pub fn post_validate(mut self, callback: fn(T) -> Result<T, Vec<String>>) -> Self {
+        self.post_validator = Some(Box::new(callback));
+        self
     }
 
     pub async fn value(self) -> T {
@@ -124,6 +133,7 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
         let files = files.remove(&self.field_name);
         let result_ref = self.result.clone();
         let validated = self.validated.clone();
+        let post_validator = self.post_validator.clone();
 
         Box::new(Box::pin(async move {
             let mut errors = vec![];
@@ -140,7 +150,18 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
                 is_empty = files.is_empty();
 
                 if let Some(t) = T::from_vec(&mut files) {
-                    *option = Some(Box::new(t));
+                    if let Some(post_validator) = post_validator {
+                        match post_validator(t) {
+                            Ok(t) => {
+                                *option = Some(Box::new(t));
+                            }
+                            Err(custom_errors) => {
+                                errors.extend_from_slice(&custom_errors);
+                            }
+                        }
+                    } else {
+                        *option = Some(Box::new(t));
+                    }
                 }
             } else {
                 is_empty = true;
