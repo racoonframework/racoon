@@ -28,7 +28,53 @@ impl ToTypeT for Uuid {
                 _ => {}
             }
         }
+
         None
+    }
+}
+
+impl ToTypeT for Option<Uuid> {
+    fn from_vec(values: &mut Vec<String>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if values.len() > 0 {
+            let value = values.remove(0);
+            match Uuid::parse_str(&value) {
+                Ok(uuid) => return Some(Some(uuid)),
+                _ => {}
+            }
+        }
+
+        // Outer Some denotes conversion success with value None.
+        Some(None)
+    }
+}
+
+impl ToTypeT for Vec<Uuid> {
+    fn from_vec(values: &mut Vec<String>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        let mut uuids = vec![];
+        if values.len() == 0 {
+            return None;
+        }
+
+        for i in 0..values.len() {
+            let value = values.remove(i);
+            match Uuid::parse_str(&value) {
+                Ok(value) => {
+                    uuids.push(value);
+                }
+                _ => {
+                    // Return conversion failed. Invalid UUID found.
+                    return None;
+                }
+            }
+        }
+
+        Some(uuids)
     }
 }
 
