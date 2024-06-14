@@ -27,7 +27,7 @@ impl UploadedFile {
     }
 }
 
-pub type BoxResult = Box<dyn Any + Sync + Send + 'static>;
+type BoxResult = Box<dyn Any + Sync + Send + 'static>;
 
 pub struct FileField<T> {
     field_name: String,
