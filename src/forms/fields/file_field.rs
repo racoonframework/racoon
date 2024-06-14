@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
+use tempfile::NamedTempFile;
 use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
@@ -13,17 +14,24 @@ use crate::forms::fields::FieldResult;
 
 pub struct UploadedFile {
     pub filename: String,
+    named_temp_file: NamedTempFile,
     pub temp_path: PathBuf,
 }
 
 impl UploadedFile {
     pub fn from_core_file_field(file_field: crate::core::forms::FileField) -> Self {
-        let temp_path = file_field.temp_file.path().to_owned();
+        let named_temp_file = file_field.temp_file;
+        let temp_path = named_temp_file.path().to_path_buf();
 
         Self {
             filename: file_field.name,
+            named_temp_file,
             temp_path,
         }
+    }
+
+    pub fn named_temp_file(&self) -> &NamedTempFile {
+        &self.named_temp_file
     }
 }
 
@@ -182,5 +190,58 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
 
     fn wrap(&self) -> Box<dyn AbstractFields> {
         Box::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use tempfile::NamedTempFile;
+
+    use crate::core::forms::{Files, FormData};
+    use crate::forms::fields::AbstractFields;
+
+    use super::{FileField, UploadedFile};
+
+    #[tokio::test]
+    async fn test_file_optional() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut file_field: FileField<Option<UploadedFile>> = FileField::new("file");
+        let result = file_field.validate(&mut form_data, &mut files).await;
+
+        assert_eq!(true, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_file_empty() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut file_field: FileField<UploadedFile> = FileField::new("file");
+        let result = file_field.validate(&mut form_data, &mut files).await;
+
+        assert_eq!(false, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_file_post_validate() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let named_temp_file = NamedTempFile::new().unwrap();
+        let core_file_field = crate::core::forms::FileField {
+            name: "file.txt".to_string(),
+            temp_file: named_temp_file,
+        };
+
+        let mut file_field: FileField<UploadedFile> = FileField::new("file");
+        files.insert("file".to_string(), vec![core_file_field]);
+        let result = file_field.validate(&mut form_data, &mut files).await;
+
+        let s = file_field.value().await;
+        let s = s.temp_path;
+        assert_eq!(true, s.exists());
+        assert_eq!(true, result.is_ok());
     }
 }
