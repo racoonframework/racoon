@@ -225,7 +225,7 @@ pub mod tests {
     }
 
     #[tokio::test]
-    async fn test_file_post_validate() {
+    async fn test_file_validate() {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
@@ -243,5 +243,29 @@ pub mod tests {
         let s = s.temp_path;
         assert_eq!(true, s.exists());
         assert_eq!(true, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_post_validate() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let named_temp_file = NamedTempFile::new().unwrap();
+        let core_file_field = crate::core::forms::FileField {
+            name: "file.txt".to_string(),
+            temp_file: named_temp_file,
+        };
+
+        let mut file_field: FileField<UploadedFile> =
+            FileField::new("file").post_validate(|file| {
+                if !file.filename.eq("file2.txt") {
+                    return Err(vec!["File name does not equal file2.txt".to_string()]);
+                }
+
+                Ok(file)
+            });
+        files.insert("file".to_string(), vec![core_file_field]);
+        let result = file_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
     }
 }
