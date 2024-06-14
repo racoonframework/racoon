@@ -47,13 +47,13 @@ impl<T> Clone for FileField<T> {
     }
 }
 
-pub trait FromFileField {
+pub trait ToOptionT {
     fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self>
     where
         Self: Sized;
 }
 
-impl FromFileField for UploadedFile {
+impl ToOptionT for UploadedFile {
     fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self> {
         if files.len() > 0 {
             let file_field = files.remove(0);
@@ -64,7 +64,7 @@ impl FromFileField for UploadedFile {
     }
 }
 
-impl FromFileField for Option<UploadedFile> {
+impl ToOptionT for Option<UploadedFile> {
     fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self> {
         if files.len() > 0 {
             let file_field = files.remove(0);
@@ -111,7 +111,7 @@ impl<T: Sync + Send + 'static> FileField<T> {
     }
 }
 
-impl<T: FromFileField + Sync + Send + 'static> AbstractFields for FileField<T> {
+impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
     fn field_name(&self) -> FieldResult<String> {
         let field_name = self.field_name.clone();
         Box::new(Box::pin(async move { field_name }))
