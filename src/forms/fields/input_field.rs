@@ -19,6 +19,7 @@ pub enum InputFieldError<'a> {
     MaximumLengthExceed(&'a String, &'a String, &'a usize),
 }
 
+pub type PostValidator<T> = Box<fn(T) -> Result<T, Vec<String>>>;
 pub type ErrorHandler = Box<fn(InputFieldError, Vec<String>) -> Vec<String>>;
 
 pub trait ToOptionT {
@@ -64,6 +65,8 @@ pub struct InputField<T> {
     result: Arc<Mutex<Option<BoxResult>>>,
     /// Custom function callback for handling error.
     error_handler: Option<Arc<ErrorHandler>>,
+
+    post_validator: Option<Arc<PostValidator<T>>>,
     /// Default value if no form field value received.
     default_value: Option<String>,
     /// True if validated successfully else false.
@@ -82,6 +85,7 @@ impl<T: ToOptionT + Sync + Send + 'static> InputField<T> {
             min_length: None,
             result: Arc::new(Mutex::new(None)),
             error_handler: None,
+            post_validator: None,
             default_value: None,
             validated: Arc::new(AtomicBool::from(false)),
             phantom: PhantomData,
@@ -102,6 +106,11 @@ impl<T: ToOptionT + Sync + Send + 'static> InputField<T> {
         // Makes field optional
         let value = value.as_ref().to_string();
         self.default_value = Some(value);
+        self
+    }
+
+    pub fn post_validate(mut self, call: fn(t: T) -> Result<T, Vec<String>>) -> Self {
+        self.post_validator = Some(Arc::new(Box::new(call)));
         self
     }
 
@@ -200,6 +209,7 @@ impl<T: ToOptionT> Clone for InputField<T> {
             max_length: self.max_length.clone(),
             min_length: self.min_length.clone(),
             error_handler: self.error_handler.clone(),
+            post_validator: self.post_validator.clone(),
             result: self.result.clone(),
             default_value: self.default_value.clone(),
             validated: self.validated.clone(),
@@ -237,6 +247,7 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
         let result = self.result.clone();
 
         let error_handler = self.error_handler.clone();
+        let post_validator = self.post_validator.clone();
 
         Box::new(Box::pin(async move {
             let mut errors: Vec<String> = vec![];
@@ -291,7 +302,21 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
                 let mut result_lock = result.lock().await;
                 if let Some(values) = form_values.as_mut() {
                     let value_t = T::from_vec(values);
-                    *result_lock = Some(Box::new(value_t.unwrap()));
+                    if let Some(mut t) = value_t {
+                        if let Some(post_validator) = post_validator {
+                            match post_validator(t) {
+                                Ok(post_validated_t) => {
+                                    t = post_validated_t;
+                                    *result_lock = Some(Box::new(t));
+                                }
+                                Err(custom_errors) => {
+                                    errors.extend_from_slice(&custom_errors);
+                                }
+                            }
+                        } else {
+                            *result_lock = Some(Box::new(t));
+                        };
+                    }
                 } else {
                     // Above conditions are satisfied however there are no values stored.
                     // Probably Optional type without default value.
