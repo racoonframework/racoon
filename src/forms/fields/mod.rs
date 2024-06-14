@@ -1,11 +1,12 @@
 pub mod file_field;
 pub mod input_field;
+pub mod uuid_field;
 
 use std::future::Future;
 
 use crate::core::forms::{Files, FormData};
 
-pub type FieldResult<T> = Box<dyn Future<Output = T> + Send + Sync + Unpin>;
+type FieldResult<T> = Box<dyn Future<Output = T> + Send + Sync + Unpin>;
 
 pub trait AbstractFields: Sync + Send {
     fn field_name(&self) -> FieldResult<String>;
