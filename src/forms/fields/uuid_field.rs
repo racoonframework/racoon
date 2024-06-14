@@ -37,7 +37,7 @@ type BoxResult = Box<dyn Any + Send + Sync>;
 pub enum UuidFieldError<'a> {
     /// (field_name)
     MissingField(&'a String),
-    /// (field_name, value)
+    /// (field_name, values)
     InvalidUuid(&'a String, &'a Vec<String>),
 }
 
