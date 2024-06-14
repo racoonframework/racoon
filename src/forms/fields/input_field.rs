@@ -21,13 +21,13 @@ pub enum InputFieldError<'a> {
 
 pub type ErrorHandler = Box<fn(InputFieldError, Vec<String>) -> Vec<String>>;
 
-pub trait FromAny {
+pub trait ToOptionT {
     fn from_vec(value: &mut Vec<String>) -> Option<Self>
     where
         Self: Sized;
 }
 
-impl FromAny for String {
+impl ToOptionT for String {
     fn from_vec(values: &mut Vec<String>) -> Option<Self> {
         if values.len() > 0 {
             return Some(values.remove(0));
@@ -39,7 +39,7 @@ impl FromAny for String {
     }
 }
 
-impl FromAny for Option<String> {
+impl ToOptionT for Option<String> {
     fn from_vec(values: &mut Vec<String>) -> Option<Self> {
         if values.len() > 0 {
             let value = values.remove(0);
@@ -72,7 +72,7 @@ pub struct InputField<T> {
     phantom: PhantomData<T>,
 }
 
-impl<T: FromAny + Sync + Send + 'static> InputField<T> {
+impl<T: ToOptionT + Sync + Send + 'static> InputField<T> {
     pub fn new<S: AsRef<str>>(field_name: S) -> Self {
         let field_name = field_name.as_ref().to_string();
 
@@ -194,7 +194,7 @@ fn validate_input_length(
     }
 }
 
-impl<T: FromAny> Clone for InputField<T> {
+impl<T: ToOptionT> Clone for InputField<T> {
     fn clone(&self) -> Self {
         Self {
             field_name: self.field_name.clone(),
@@ -209,7 +209,7 @@ impl<T: FromAny> Clone for InputField<T> {
     }
 }
 
-impl<T: FromAny + Sync + Send + 'static> AbstractFields for InputField<T> {
+impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
     fn field_name(&self) -> FieldResult<String> {
         let field_name = self.field_name.clone();
         Box::new(Box::pin(async move { field_name }))
