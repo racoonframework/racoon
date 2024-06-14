@@ -125,8 +125,7 @@ impl<T: ToOptionT + Sync + Send + 'static> InputField<T> {
         if let Some(result) = result {
             match result.downcast::<T>() {
                 Ok(t) => {
-                    let t = *t;
-                    return t;
+                    return *t;
                 }
 
                 _ => {}

@@ -99,8 +99,7 @@ impl<T: Sync + Send + 'static> FileField<T> {
         if let Some(result) = result {
             match result.downcast::<T>() {
                 Ok(t) => {
-                    let t = *t;
-                    return t;
+                    return *t;
                 }
 
                 _ => {}
