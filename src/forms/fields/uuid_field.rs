@@ -34,10 +34,20 @@ impl ToTypeT for Uuid {
 
 type BoxResult = Box<dyn Any + Send + Sync>;
 
+pub enum UuidFieldError<'a> {
+    /// (field_name)
+    MissingField(&'a String),
+    /// (field_name, value)
+    InvalidUuid(&'a String, &'a Vec<String>),
+}
+
+pub type ErrorHandler = Box<fn(UuidFieldError, Vec<String>) -> Vec<String>>;
+
 pub struct UuidField<T> {
     field_name: String,
     result: Arc<Mutex<Option<BoxResult>>>,
     validated: Arc<AtomicBool>,
+    error_handler: Option<Arc<ErrorHandler>>,
     phantom: PhantomData<T>,
 }
 
@@ -47,6 +57,7 @@ impl<T> Clone for UuidField<T> {
             field_name: self.field_name.clone(),
             result: self.result.clone(),
             validated: self.validated.clone(),
+            error_handler: self.error_handler.clone(),
             phantom: self.phantom.clone(),
         }
     }
@@ -60,9 +71,19 @@ impl<T: ToTypeT + Sync + Send> UuidField<T> {
             field_name,
             result: Arc::new(Mutex::new(None)),
             validated: Arc::new(AtomicBool::new(false)),
+            error_handler: None,
             phantom: PhantomData,
         }
     }
+
+    pub fn handle_error_message(
+        mut self,
+        callback: fn(UuidFieldError, Vec<String>) -> Vec<String>,
+    ) -> Self {
+        self.error_handler = Some(Arc::new(Box::new(callback)));
+        self
+    }
+
     pub async fn value(self) -> T
     where
         T: 'static,
@@ -100,6 +121,8 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
         let result = self.result.clone();
         let validated = self.validated.clone();
 
+        let error_handler = self.error_handler.clone();
+
         Box::new(Box::pin(async move {
             let is_empty;
             let is_optional = std::any::TypeId::of::<T>() == std::any::TypeId::of::<Option<Uuid>>();
@@ -114,14 +137,31 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
                     let mut result = result.lock().await;
                     *result = Some(Box::new(t));
                 } else {
-                    errors.push("Invalid UUID.".to_string());
+                    let default_uuid_invalid_error = "Invalid UUId.".to_string();
+                    if let Some(error_handler) = error_handler.clone() {
+                        let invalid_uuid_error = UuidFieldError::InvalidUuid(&field_name, &values);
+                        let custom_errors =
+                            error_handler(invalid_uuid_error, vec![default_uuid_invalid_error]);
+                        errors.extend_from_slice(&custom_errors);
+                    } else {
+                        errors.push(default_uuid_invalid_error);
+                    }
                 }
             } else {
                 is_empty = true;
             }
 
             if !is_optional && is_empty {
-                errors.push("This field is required".to_string());
+                let default_uuid_missing_error = "This field is required.".to_string();
+
+                if let Some(error_handler) = error_handler.clone() {
+                    let uuid_missing_error = UuidFieldError::MissingField(&field_name);
+                    let custom_errors =
+                        error_handler(uuid_missing_error, vec![default_uuid_missing_error]);
+                    errors.extend_from_slice(&custom_errors);
+                } else {
+                    errors.push(default_uuid_missing_error);
+                }
             }
 
             if errors.len() > 0 {
