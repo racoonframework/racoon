@@ -297,20 +297,20 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
             }
 
             // All the validation conditions are satisfied.
-            validated.store(true, Ordering::Relaxed);
             {
                 let mut result_lock = result.lock().await;
                 if let Some(values) = form_values.as_mut() {
                     let value_t = T::from_vec(values);
                     if let Some(mut t) = value_t {
                         if let Some(post_validator) = post_validator {
+                            // Performs post validation callback.
                             match post_validator(t) {
                                 Ok(post_validated_t) => {
                                     t = post_validated_t;
                                     *result_lock = Some(Box::new(t));
                                 }
                                 Err(custom_errors) => {
-                                    errors.extend_from_slice(&custom_errors);
+                                    return Err(custom_errors);
                                 }
                             }
                         } else {
@@ -324,6 +324,8 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
                     *result_lock = Some(Box::new(value_t.unwrap()));
                 }
             }
+
+            validated.store(true, Ordering::Relaxed);
             Ok(())
         }))
     }
@@ -422,6 +424,25 @@ pub mod test {
     async fn test_empty_value_with_length() {
         let mut input_field: InputField<String> = InputField::new("name").max_length(100);
         let mut form_data = FormData::new();
+        let mut files = Files::new();
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_post_validate() {
+        let mut input_field: InputField<String> = InputField::new("name")
+            .max_length(100)
+            .post_validate(|value| {
+                if !value.eq("John") {
+                    return Err(vec!["Value is not John".to_string()]);
+                }
+
+                Ok(value)
+            });
+        let mut form_data = FormData::new();
+        form_data.insert("name".to_string(), vec!["Raphel".to_string()]);
+
         let mut files = Files::new();
         let result = input_field.validate(&mut form_data, &mut files).await;
         assert_eq!(false, result.is_ok());
