@@ -419,7 +419,7 @@ pub mod test {
     }
 
     #[tokio::test]
-    async fn test_validation_error() {
+    async fn test_empty_value_with_length() {
         let mut input_field: InputField<String> = InputField::new("name").max_length(100);
         let mut form_data = FormData::new();
         let mut files = Files::new();
