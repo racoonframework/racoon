@@ -71,7 +71,7 @@ pub mod reader {
                 buffer.extend(chunk);
             }
 
-            actual_payload_length = payload_length_to_u16(&buffer[..2]) as u64;
+            actual_payload_length = payload_length_to_u16(&buffer[..2])? as u64;
 
             // Removes used bytes
             buffer = (&buffer[2..]).to_owned();
@@ -82,7 +82,7 @@ pub mod reader {
                 buffer.extend(chunk);
             }
 
-            actual_payload_length = payload_length_to_u64(&buffer[..8]);
+            actual_payload_length = payload_length_to_u64(&buffer[..8])?;
 
             // Removes used bytes
             buffer = (&buffer[8..]).to_owned();
@@ -109,7 +109,9 @@ pub mod reader {
         }
 
         if actual_payload_length > max_payload_size {
-            return Err(std::io::Error::other("Payload length is more than the maximum allowed size."));
+            return Err(std::io::Error::other(
+                "Payload length is more than the maximum allowed size.",
+            ));
         }
 
         // Loads message bytes to the buffer
@@ -165,15 +167,33 @@ pub mod reader {
     ///
     /// Converts 2 bytes array to unsigned number.
     ///
-    fn payload_length_to_u16(byte: &[u8]) -> u16 {
-        u16::from_be_bytes(byte.try_into().unwrap())
+    fn payload_length_to_u16(bytes: &[u8]) -> std::io::Result<u16> {
+        if bytes.len() != 2 {
+            return Err(std::io::Error::other(format!(
+                "Failed to convert payload length to u64. Bytes of size 2 is expected. But found: {}",
+                bytes.len()
+                )));
+        }
+
+        let mut tmp_bytes = [0; 2];
+        tmp_bytes.copy_from_slice(bytes);
+        Ok(u16::from_be_bytes(tmp_bytes))
     }
 
     ///
     /// Converts 8 bytes array to unsigned number.
     ///
-    fn payload_length_to_u64(bytes: &[u8]) -> u64 {
-        u64::from_be_bytes(bytes.try_into().unwrap())
+    fn payload_length_to_u64(bytes: &[u8]) -> std::io::Result<u64> {
+        if bytes.len() != 8 {
+            return Err(std::io::Error::other(format!(
+                "Failed to convert payload length to u64. Bytes of size 8 is expected. But found: {}",
+                bytes.len()
+            )));
+        }
+
+        let mut tmp_bytes = [0; 8];
+        tmp_bytes.copy_from_slice(bytes);
+        Ok(u64::from_be_bytes(tmp_bytes))
     }
 }
 
