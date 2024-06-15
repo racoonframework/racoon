@@ -104,11 +104,11 @@ impl ToOptionT for Vec<UploadedFile> {
         Self: Sized,
     {
         if files.len() > 0 {
-            let mut owned_files = Vec::with_capacity(files.len());
+            let mut owned_files = vec![];
 
             for i in (0..files.len()).rev() {
                 let uploaded_file = UploadedFile::from_core_file_field(files.remove(i));
-                owned_files[i] = uploaded_file;
+                owned_files.insert(0, uploaded_file);
             }
 
             return Some(owned_files);
@@ -129,11 +129,11 @@ impl ToOptionT for Option<Vec<UploadedFile>> {
         Self: Sized,
     {
         if files.len() > 0 {
-            let mut owned_files = Vec::with_capacity(files.len());
+            let mut owned_files = vec![];
 
             for i in (0..files.len()).rev() {
                 let uploaded_file = UploadedFile::from_core_file_field(files.remove(i));
-                owned_files[i] = uploaded_file;
+                owned_files.insert(0, uploaded_file);
             }
 
             return Some(Some(owned_files));
