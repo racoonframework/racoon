@@ -34,7 +34,6 @@ impl ToOptionT for String {
             return Some(values.remove(0));
         }
 
-        // Must return String.
         // Here None denotes values cannot be correctly converted to type T.
         None
     }
