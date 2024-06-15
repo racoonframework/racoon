@@ -151,7 +151,7 @@ impl Request {
                 }
                 Err(error) => {
                     racoon_error!("Error while parsing multipart body: {:?}", error);
-                    Ok((form_data, files))
+                    Err(error)
                 }
             };
         } else if content_type

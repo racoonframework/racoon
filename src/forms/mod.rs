@@ -31,56 +31,57 @@ pub trait FormValidator: Sized + Send {
 
         Box::new(Box::pin(async move {
             let mut field_errors: HashMap<String, Vec<String>> = HashMap::new();
-            let mut other_errors = vec![];
+            let mut other_errors: Vec<String> = vec![];
 
-            let (mut form_data, mut files) = match request
-                .parse_body(request.form_constraints.clone())
-                .await
-            {
-                Ok((form_data, files)) => (form_data, files),
-                Err(error) => {
-                    match error {
-                        FormFieldError::MaxBodySizeExceed => {
-                            other_errors.push("Max body size exceed.");
-                        }
+            let (mut form_data, mut files) =
+                match request.parse_body(request.form_constraints.clone()).await {
+                    Ok((form_data, files)) => (form_data, files),
+                    Err(error) => {
+                        match error {
+                            FormFieldError::MaxBodySizeExceed => {
+                                other_errors.push("Max body size exceed.".to_string());
+                            }
 
-                        FormFieldError::MaxHeaderSizeExceed => {
-                            other_errors.push("Max header size exceed.");
-                        }
+                            FormFieldError::MaxHeaderSizeExceed => {
+                                other_errors.push("Max header size exceed.".to_string());
+                            }
 
-                        FormFieldError::MaxFileSizeExceed(field_name) => {
-                            let file_size_exceed_error = vec!["Max file size exceed.".to_string()];
-                            if let Some(errors) = field_errors.get_mut(&field_name) {
-                                errors.extend_from_slice(&file_size_exceed_error);
-                            } else {
-                                field_errors.insert(field_name, file_size_exceed_error);
+                            FormFieldError::MaxFileSizeExceed(field_name) => {
+                                let file_size_exceed_error =
+                                    vec!["Max file size exceed.".to_string()];
+                                if let Some(errors) = field_errors.get_mut(&field_name) {
+                                    errors.extend_from_slice(&file_size_exceed_error);
+                                } else {
+                                    field_errors.insert(field_name, file_size_exceed_error);
+                                }
+                            }
+
+                            FormFieldError::MaxValueSizeExceed(field_name) => {
+                                let value_length_exceed_error =
+                                    vec!["Max value length exceed.".to_string()];
+                                if let Some(errors) = field_errors.get_mut(&field_name) {
+                                    errors.extend_from_slice(&value_length_exceed_error);
+                                } else {
+                                    field_errors.insert(field_name, value_length_exceed_error);
+                                }
+                            }
+
+                            FormFieldError::Others(field_name, error) => {
+                                if let Some(field_name) = field_name {
+                                    field_errors.insert(field_name, vec![error]);
+                                } else {
+                                    other_errors.push(error);
+                                }
                             }
                         }
 
-                        FormFieldError::MaxValueSizeExceed(field_name) => {
-                            let value_length_exceed_error = vec!["Max value length exceed.".to_string()];
-                            if let Some(errors) = field_errors.get_mut(&field_name) {
-                                errors.extend_from_slice(&value_length_exceed_error);
-                            } else {
-                                field_errors.insert(field_name, value_length_exceed_error);
-                            }
-                        }
-                        
-                        FormFieldError::Others(field_name, error)=> {
-                            if let Some(field_name) = field_name {
-                                field_errors.insert(field_name, vec![error]);
-                            } else {
-                                other_errors.push(&error);
-                            }
-                        }
+                        let validation_error = ValidationError {
+                            field_errors,
+                            others: other_errors,
+                        };
+                        return Err(validation_error);
                     }
-                    let validation_error = ValidationError {
-                        field_errors: HashMap::new(),
-                        others: vec![],
-                    };
-                    return Err(validation_error);
-                }
-            };
+                };
 
             for mut field in self.form_fields() {
                 let field_name = field.field_name().await;
