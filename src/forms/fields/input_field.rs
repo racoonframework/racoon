@@ -103,7 +103,6 @@ impl<T: ToOptionT + Sync + Send + 'static> InputField<T> {
     }
 
     pub fn set_default<S: AsRef<str>>(mut self, value: S) -> Self {
-        // Makes field optional
         let value = value.as_ref().to_string();
         self.default_value = Some(value);
         self
