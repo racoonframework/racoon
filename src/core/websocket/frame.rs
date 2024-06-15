@@ -144,7 +144,6 @@ pub mod reader {
     ///
     /// Converts 4 bit opcode to unsigned number.
     ///
-    ///
     fn opcode_bit_to_u8(byte: &u8) -> u8 {
         byte & 0b00001111
     }
