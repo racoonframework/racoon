@@ -35,7 +35,7 @@ impl ToTypeT for Uuid {
     }
 
     fn is_optional() -> bool {
-        true
+        false
     }
 }
 
@@ -209,7 +209,7 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
     ) -> FieldResult<Result<(), Vec<String>>> {
         let field_name = self.field_name.clone();
         let mut values = form_data.remove(&field_name);
-        let result = self.result.clone();
+        let result_ref = self.result.clone();
         let validated = self.validated.clone();
 
         let error_handler = self.error_handler.clone();
@@ -225,7 +225,8 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
                 let option_t = T::from_vec(&mut values);
 
                 if let Some(t) = option_t {
-                    let mut result = result.lock().await;
+                    let result_ref = result_ref.clone();
+                    let mut result = result_ref.lock().await;
                     *result = Some(Box::new(t));
                 } else {
                     let default_uuid_invalid_error = "Invalid UUId.".to_string();
@@ -259,6 +260,15 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
                 return Err(errors);
             }
 
+            if is_optional && is_empty {
+                let value_t = T::from_vec(&mut vec![]);
+
+                if let Some(t) = value_t {
+                    let mut result = result_ref.lock().await;
+                    *result = Some(Box::new(t));
+                }
+            }
+
             validated.store(true, Ordering::Relaxed);
             Ok(())
         }))
@@ -266,5 +276,74 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
 
     fn wrap(&self) -> Box<dyn AbstractFields> {
         Box::new(self.clone())
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use crate::core::forms::{Files, FormData};
+    use crate::forms::fields::uuid_field::UuidField;
+    use crate::forms::fields::AbstractFields;
+
+    use uuid::Uuid;
+
+    #[tokio::test]
+    async fn test_uuid_validate_required() {
+        let mut uuid_field: UuidField<Uuid> = UuidField::new("key");
+        let mut forms_data = FormData::new();
+        let mut files = Files::new();
+
+        let result = uuid_field.validate(&mut forms_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+
+        let mut uuid_field2: UuidField<Uuid> = UuidField::new("key");
+        forms_data.insert("key".to_string(), vec!["abcd".to_string()]);
+        let result = uuid_field2.validate(&mut forms_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+
+        // Clear form field values
+        forms_data.clear();
+
+        let mut uuid_field3: UuidField<Uuid> = UuidField::new("key");
+        forms_data.insert(
+            "key".to_string(),
+            vec!["1130fc58-e9dd-4fce-aa7a-cb41cebdebe1".to_string()],
+        );
+        let result = uuid_field3.validate(&mut forms_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_uuid_optional() {
+        let mut uuid_field: UuidField<Option<Uuid>> = UuidField::new("key");
+        let mut forms_data = FormData::new();
+        let mut files = Files::new();
+        let result = uuid_field.validate(&mut forms_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(None, uuid_field.value().await);
+    }
+
+    #[tokio::test]
+    async fn test_uuid_vec() {
+        let mut uuid_field: UuidField<Vec<Uuid>> = UuidField::new("key");
+        let mut forms_data = FormData::new();
+        forms_data.insert(
+            "key".to_string(),
+            vec!["1130fc58-e9dd-4fce-aa7a-cb41cebdebe1".to_string()],
+        );
+        let mut files = Files::new();
+        let result = uuid_field.validate(&mut forms_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(1, uuid_field.value().await.len());
+    }
+
+    #[tokio::test]
+    async fn test_uuid_optional_vec() {
+        let mut uuid_field: UuidField<Option<Vec<Uuid>>> = UuidField::new("key");
+        let mut forms_data = FormData::new();
+        let mut files = Files::new();
+        let result = uuid_field.validate(&mut forms_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(None, uuid_field.value().await);
     }
 }
