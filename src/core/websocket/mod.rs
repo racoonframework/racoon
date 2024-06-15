@@ -27,7 +27,6 @@ pub enum Message {
     Others(Vec<u8>),
 }
 
-
 pub struct WebSocket {
     pub uid: String,
     stream: Arc<Stream>,
@@ -286,10 +285,12 @@ impl WebSocket {
     fn close_code_from_payload(&self, response: &[u8]) -> u16 {
         racoon_debug!("Payload bytes: {:?}", response);
 
-        if response.len() != 16 {
-            return 0;
+        if response.len() == 16 {
+            let mut tmp_bytes = [0u8; 2];
+            tmp_bytes.copy_from_slice(response);
+            return u16::from_be_bytes(tmp_bytes);
         }
 
-        u16::from_be_bytes(response.try_into().expect("Failed to parse to u16."))
+        return 0;
     }
 }
