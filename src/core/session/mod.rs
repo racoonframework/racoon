@@ -3,7 +3,10 @@ pub mod managers;
 use std::future::Future;
 use std::sync::Arc;
 
+use tokio::sync::Mutex;
 use uuid::Uuid;
+
+use crate::core::headers::Headers;
 
 pub type SessionResult<T> = Box<dyn Future<Output = T> + Send + Unpin>;
 
@@ -31,6 +34,7 @@ pub type SessionManager = Box<dyn AbstractSessionManager>;
 pub struct Session {
     session_manager: Arc<SessionManager>,
     session_id: String,
+    response_headers: Arc<Mutex<Headers>>,
 }
 
 impl Clone for Session {
@@ -38,12 +42,17 @@ impl Clone for Session {
         Self {
             session_manager: self.session_manager.clone(),
             session_id: self.session_id.clone(),
+            response_headers: self.response_headers.clone(),
         }
     }
 }
 
 impl Session {
-    pub fn from(session_manager: Arc<SessionManager>, session_id: Option<&String>) -> Self {
+    pub fn from(
+        session_manager: Arc<SessionManager>,
+        session_id: Option<&String>,
+        response_headers: Arc<Mutex<Headers>>,
+    ) -> Self {
         let session_id_value;
 
         // If not exists, creates new session id
@@ -56,6 +65,7 @@ impl Session {
         Self {
             session_manager,
             session_id: session_id_value,
+            response_headers: response_headers.clone(),
         }
     }
 
@@ -143,6 +153,16 @@ impl Session {
     /// Removes all session values of the client.
     ///
     pub async fn destroy(&self) -> std::io::Result<()> {
+        // Removes sesisonid from Cookie
+        let response_headers_ref = self.response_headers.clone();
+        let mut response_headers = response_headers_ref.lock().await;
+
+        let expire_header_value = format!(
+            "{}=;Expires=Sun, 06 Nov 1994 08:49:37 GMT; Path=/",
+            "sessionid"
+        );
+        response_headers.insert("Set-Cookie".to_string(), vec![expire_header_value.as_bytes().to_vec()]);
+
         self.session_manager.destroy(&self.session_id).await
     }
 }
