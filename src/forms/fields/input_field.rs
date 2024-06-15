@@ -53,6 +53,43 @@ impl ToOptionT for Option<String> {
     }
 }
 
+impl ToOptionT for Vec<String> {
+    fn from_vec(values: &mut Vec<String>) -> Option<Self> {
+        // At least one value must be present to be a required field.
+        if values.len() > 0 {
+            let mut owned_values = vec![];
+
+            for i in 0..values.len() {
+                owned_values.push(values.remove(i));
+            }
+
+            return Some(owned_values);
+        }
+
+        // Here None denotes values cannot be correctly converted to type T.
+        None
+    }
+}
+
+impl ToOptionT for Option<Vec<String>> {
+    fn from_vec(values: &mut Vec<String>) -> Option<Self> {
+        // At least one value must be present to be a required field.
+        if values.len() > 0 {
+            let mut owned_values = vec![];
+
+            for i in 0..values.len() {
+                owned_values.push(values.remove(i));
+            }
+
+            return Some(Some(owned_values));
+        }
+
+        // Here no values are received but since it's optional field,
+        // returns successfull conversion to type None.
+        Some(None)
+    }
+}
+
 type BoxResult = Box<dyn Any + Send + Sync + 'static>;
 
 pub struct InputField<T> {
