@@ -14,6 +14,8 @@ pub trait ToTypeT {
     fn from_vec(values: &mut Vec<String>) -> Option<Self>
     where
         Self: Sized;
+
+    fn is_optional() -> bool;
 }
 
 impl ToTypeT for Uuid {
@@ -30,6 +32,10 @@ impl ToTypeT for Uuid {
         }
 
         None
+    }
+
+    fn is_optional() -> bool {
+        true
     }
 }
 
@@ -49,6 +55,10 @@ impl ToTypeT for Option<Uuid> {
         // Outer Some denotes conversion success with value None.
         Some(None)
     }
+
+    fn is_optional() -> bool {
+        true
+    }
 }
 
 impl ToTypeT for Vec<Uuid> {
@@ -61,11 +71,11 @@ impl ToTypeT for Vec<Uuid> {
             return None;
         }
 
-        for i in 0..values.len() {
+        for i in (0..values.len()).rev() {
             let value = values.remove(i);
             match Uuid::parse_str(&value) {
                 Ok(value) => {
-                    uuids.push(value);
+                    uuids.insert(0, value);
                 }
                 _ => {
                     // Return conversion failed. Invalid UUID found.
@@ -75,6 +85,41 @@ impl ToTypeT for Vec<Uuid> {
         }
 
         Some(uuids)
+    }
+
+    fn is_optional() -> bool {
+        false
+    }
+}
+
+impl ToTypeT for Option<Vec<Uuid>> {
+    fn from_vec(values: &mut Vec<String>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        let mut uuids = vec![];
+        if values.len() == 0 {
+            return Some(None);
+        }
+
+        for i in (0..values.len()).rev() {
+            let value = values.remove(i);
+            match Uuid::parse_str(&value) {
+                Ok(value) => {
+                    uuids.insert(0, value);
+                }
+                _ => {
+                    // Return conversion failed. Invalid UUID found.
+                    return Some(None);
+                }
+            }
+        }
+
+        Some(Some(uuids))
+    }
+
+    fn is_optional() -> bool {
+        true
     }
 }
 
@@ -171,7 +216,7 @@ impl<T: ToTypeT + Sync + Send + 'static> AbstractFields for UuidField<T> {
 
         Box::new(Box::pin(async move {
             let is_empty;
-            let is_optional = std::any::TypeId::of::<T>() == std::any::TypeId::of::<Option<Uuid>>();
+            let is_optional = T::is_optional();
 
             let mut errors: Vec<String> = vec![];
 
