@@ -26,6 +26,7 @@ pub trait ToOptionT {
     fn from_vec(value: &mut Vec<String>) -> Option<Self>
     where
         Self: Sized;
+    fn is_optional() -> bool;
 }
 
 impl ToOptionT for String {
@@ -36,6 +37,10 @@ impl ToOptionT for String {
 
         // Here None denotes values cannot be correctly converted to type T.
         None
+    }
+
+    fn is_optional() -> bool {
+        false
     }
 }
 
@@ -50,6 +55,10 @@ impl ToOptionT for Option<String> {
             return Some(None);
         }
     }
+
+    fn is_optional() -> bool {
+        true
+    }
 }
 
 impl ToOptionT for Vec<String> {
@@ -58,7 +67,7 @@ impl ToOptionT for Vec<String> {
         if values.len() > 0 {
             let mut owned_values = vec![];
 
-            for i in 0..values.len() {
+            for i in (0..values.len()).rev() {
                 owned_values.push(values.remove(i));
             }
 
@@ -68,6 +77,10 @@ impl ToOptionT for Vec<String> {
         // Here None denotes values cannot be correctly converted to type T.
         None
     }
+
+    fn is_optional() -> bool {
+        false
+    }
 }
 
 impl ToOptionT for Option<Vec<String>> {
@@ -76,7 +89,7 @@ impl ToOptionT for Option<Vec<String>> {
         if values.len() > 0 {
             let mut owned_values = vec![];
 
-            for i in 0..values.len() {
+            for i in (0..values.len()).rev() {
                 owned_values.push(values.remove(i));
             }
 
@@ -86,6 +99,10 @@ impl ToOptionT for Option<Vec<String>> {
         // Here no values are received but since it's optional field,
         // returns successfull conversion to type None.
         Some(None)
+    }
+
+    fn is_optional() -> bool {
+        true
     }
 }
 
@@ -304,8 +321,7 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for InputField<T> {
             }
 
             // Handles field missing error.
-            let is_optional =
-                std::any::TypeId::of::<T>() == std::any::TypeId::of::<Option<String>>();
+            let is_optional = T::is_optional();
 
             if !is_optional && is_empty {
                 // If default value is specified, set default value for value
@@ -424,6 +440,66 @@ pub mod test {
         let result = input_field2.validate(&mut form_data, &mut files).await;
         assert_eq!(true, result.is_ok());
         assert_eq!(Some("John".to_string()), input_field2.value().await);
+    }
+
+    #[tokio::test]
+    async fn test_validate_vec() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut input_field: InputField<Vec<String>> = InputField::new("name").max_length(100);
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(false, result.is_ok());
+
+        // With values
+        let mut input_field2: InputField<Vec<String>> = InputField::new("name").max_length(100);
+
+        form_data.insert(
+            "name".to_string(),
+            vec![
+                "1".to_string(),
+                "2".to_string(),
+                "3".to_string(),
+                "4".to_string(),
+            ],
+        );
+
+        let result = input_field2.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(4, input_field2.value().await.len());
+    }
+
+    #[tokio::test]
+    async fn test_validate_vec_optional() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut input_field: InputField<Option<Vec<String>>> =
+            InputField::new("name").max_length(100);
+        let result = input_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(false, input_field.value().await.is_some());
+
+        // With values
+        let mut input_field2: InputField<Option<Vec<String>>> =
+            InputField::new("name").max_length(100);
+
+        form_data.insert(
+            "name".to_string(),
+            vec![
+                "1".to_string(),
+                "2".to_string(),
+                "3".to_string(),
+                "4".to_string(),
+            ],
+        );
+
+        let result = input_field2.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+
+        let value = input_field2.value().await;
+        assert_eq!(true, value.is_some());
+        assert_eq!(4, value.unwrap().len());
     }
 
     #[tokio::test]
