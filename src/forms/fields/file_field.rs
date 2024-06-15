@@ -211,23 +211,21 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
             let is_empty;
 
             if let Some(mut files) = files {
-                let result = result_ref.lock().await;
-                let mut option = result;
-
+                let mut result = result_ref.lock().await;
                 is_empty = files.is_empty();
 
                 if let Some(t) = T::from_vec(&mut files) {
                     if let Some(post_validator) = post_validator {
                         match post_validator(t) {
                             Ok(t) => {
-                                *option = Some(Box::new(t));
+                                *result = Some(Box::new(t));
                             }
                             Err(custom_errors) => {
                                 errors.extend_from_slice(&custom_errors);
                             }
                         }
                     } else {
-                        *option = Some(Box::new(t));
+                        *result = Some(Box::new(t));
                     }
                 }
             } else {
@@ -240,6 +238,14 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
 
             if errors.len() > 0 {
                 return Err(errors);
+            }
+
+            if is_optional && is_empty {
+                let value_t = T::from_vec(&mut vec![]);
+                if let Some(t) = value_t {
+                    let mut result = result_ref.lock().await;
+                    *result = Some(Box::new(t));
+                }
             }
 
             validated.store(true, Ordering::Relaxed);
@@ -302,6 +308,57 @@ pub mod tests {
         let s = s.temp_path;
         assert_eq!(true, s.exists());
         assert_eq!(true, result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_file_validate_vec() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let named_temp_file = NamedTempFile::new().unwrap();
+        let core_file_field = crate::core::forms::FileField {
+            name: "file.txt".to_string(),
+            temp_file: named_temp_file,
+        };
+
+        let mut file_field: FileField<Vec<UploadedFile>> = FileField::new("file");
+        files.insert("file".to_string(), vec![core_file_field]);
+        let result = file_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+
+        let sent_files = file_field.value().await;
+        assert_eq!(1, sent_files.len());
+    }
+
+    #[tokio::test]
+    async fn test_file_validate_vec_optional() {
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let named_temp_file = NamedTempFile::new().unwrap();
+        let core_file_field = crate::core::forms::FileField {
+            name: "file.txt".to_string(),
+            temp_file: named_temp_file,
+        };
+
+        let mut file_field: FileField<Option<Vec<UploadedFile>>> = FileField::new("file");
+        files.insert("file".to_string(), vec![core_file_field]);
+        let result = file_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+
+        let sent_files = file_field.value().await;
+        assert_eq!(true, sent_files.is_some());
+        assert_eq!(1, sent_files.unwrap().len());
+
+        // Empty test
+
+        let mut form_data = FormData::new();
+        let mut files = Files::new();
+
+        let mut file_field: FileField<Option<Vec<UploadedFile>>> = FileField::new("file");
+        let result = file_field.validate(&mut form_data, &mut files).await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(false, file_field.value().await.is_some());
     }
 
     #[tokio::test]
