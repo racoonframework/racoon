@@ -62,6 +62,8 @@ pub trait ToOptionT {
     fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self>
     where
         Self: Sized;
+
+    fn is_optional() -> bool;
 }
 
 impl ToOptionT for UploadedFile {
@@ -72,6 +74,10 @@ impl ToOptionT for UploadedFile {
         }
 
         None
+    }
+
+    fn is_optional() -> bool {
+        false
     }
 }
 
@@ -85,6 +91,60 @@ impl ToOptionT for Option<UploadedFile> {
 
         // Return successful conversion but no files are present. So returns actual value as None.
         Some(None)
+    }
+
+    fn is_optional() -> bool {
+        true
+    }
+}
+
+impl ToOptionT for Vec<UploadedFile> {
+    fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if files.len() > 0 {
+            let mut owned_files = Vec::with_capacity(files.len());
+
+            for i in (0..files.len()).rev() {
+                let uploaded_file = UploadedFile::from_core_file_field(files.remove(i));
+                owned_files[i] = uploaded_file;
+            }
+
+            return Some(owned_files);
+        }
+
+        // Conversion to type T failed.
+        None
+    }
+
+    fn is_optional() -> bool {
+        false
+    }
+}
+
+impl ToOptionT for Option<Vec<UploadedFile>> {
+    fn from_vec(files: &mut Vec<crate::core::forms::FileField>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        if files.len() > 0 {
+            let mut owned_files = Vec::with_capacity(files.len());
+
+            for i in (0..files.len()).rev() {
+                let uploaded_file = UploadedFile::from_core_file_field(files.remove(i));
+                owned_files[i] = uploaded_file;
+            }
+
+            return Some(Some(owned_files));
+        }
+
+        // Conversion to type T successful because of optional field. So returns None as result.
+        Some(None)
+    }
+
+    fn is_optional() -> bool {
+        true
     }
 }
 
@@ -146,8 +206,7 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
         Box::new(Box::pin(async move {
             let mut errors = vec![];
 
-            let is_optional =
-                std::any::TypeId::of::<T>() == std::any::TypeId::of::<Option<UploadedFile>>();
+            let is_optional = T::is_optional();
 
             let is_empty;
 
