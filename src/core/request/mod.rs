@@ -62,7 +62,7 @@ impl Request {
         let session_id = cookies.value("sessionid");
 
         let has_session_id = session_id.is_some();
-        let session = Session::from(session_manager, session_id);
+        let session = Session::from(session_manager, session_id, response_headers.clone());
 
         // If sessionid was not present in cookie, puts additional Set-Cookie header in the
         // response.
