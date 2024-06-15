@@ -218,20 +218,8 @@ impl WebSocket {
                     // Connection close frame
                     self.receive_next = Arc::from(false);
                     let close_code = self.close_code_from_payload(&frame.payload);
-                    let close_message;
-
-                    if close_code == 1000 {
-                        close_message = "Normal closure";
-                    } else if close_code == 1001 {
-                        close_message = "Going away";
-                    } else if close_code == 1002 {
-                        close_message = "Protocol error";
-                    } else if close_code == 1003 {
-                        close_message = "Unsupported data";
-                    } else {
-                        close_message = "Unknown error";
-                    }
-                    Some(Message::Close(close_code, close_message.to_string()))
+                    let close_message = self.close_message_from_payload(&frame.payload); 
+                    Some(Message::Close(close_code, close_message))
                 } else if frame.op_code == 9 {
                     // Ping frame
                     Some(Message::Ping())
@@ -283,14 +271,25 @@ impl WebSocket {
     }
 
     fn close_code_from_payload(&self, response: &[u8]) -> u16 {
-        racoon_debug!("Payload bytes: {:?}", response);
-
-        if response.len() == 16 {
+        if response.len() == 2 {
             let mut tmp_bytes = [0u8; 2];
             tmp_bytes.copy_from_slice(response);
             return u16::from_be_bytes(tmp_bytes);
         }
 
+        racoon_debug!(
+            "Close payload length expected more than 2. But found: {}",
+            response.len()
+        );
         return 0;
+    }
+
+    fn close_message_from_payload(&self, response: &[u8]) -> String {
+        if response.len() < 3 {
+            return "No close message specified.".to_string();
+        }
+
+        let message_bytes = &response[2..];
+        String::from_utf8_lossy(&message_bytes).to_string()
     }
 }
