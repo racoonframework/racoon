@@ -68,7 +68,7 @@ impl ToOptionT for Vec<String> {
             let mut owned_values = vec![];
 
             for i in (0..values.len()).rev() {
-                owned_values.push(values.remove(i));
+                owned_values.insert(0, values.remove(i));
             }
 
             return Some(owned_values);
@@ -90,7 +90,7 @@ impl ToOptionT for Option<Vec<String>> {
             let mut owned_values = vec![];
 
             for i in (0..values.len()).rev() {
-                owned_values.push(values.remove(i));
+                owned_values.insert(0, values.remove(i));
             }
 
             return Some(Some(owned_values));
