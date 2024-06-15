@@ -28,7 +28,7 @@ pub enum Message {
 }
 
 
-pub struct Websocket {
+pub struct WebSocket {
     pub uid: String,
     stream: Arc<Stream>,
     request_validated: bool,
@@ -37,7 +37,7 @@ pub struct Websocket {
     body: Vec<u8>,
 }
 
-impl Clone for Websocket {
+impl Clone for WebSocket {
     fn clone(&self) -> Self {
         Self {
             uid: self.uid.clone(),
@@ -50,7 +50,7 @@ impl Clone for Websocket {
     }
 }
 
-impl AbstractResponse for Websocket {
+impl AbstractResponse for WebSocket {
     fn status(&self) -> (u32, String) {
         (200, "OK".to_string())
     }
@@ -72,9 +72,9 @@ impl AbstractResponse for Websocket {
     }
 }
 
-impl Websocket {
+impl WebSocket {
     pub async fn from(request: &Request) -> (Self, bool) {
-        let instance = match Websocket::validate(request).await {
+        let instance = match WebSocket::validate(request).await {
             Ok(instance) => instance,
             Err(error) => {
                 racoon_error!("WS Error: {}", error.to_owned());
