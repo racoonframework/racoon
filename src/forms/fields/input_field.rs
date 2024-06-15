@@ -65,7 +65,7 @@ pub struct InputField<T> {
     result: Arc<Mutex<Option<BoxResult>>>,
     /// Custom function callback for handling error.
     error_handler: Option<Arc<ErrorHandler>>,
-
+    /// Custom callback for post field validation.
     post_validator: Option<Arc<PostValidator<T>>>,
     /// Default value if no form field value received.
     default_value: Option<String>,
