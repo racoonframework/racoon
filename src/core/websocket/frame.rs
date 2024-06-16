@@ -200,7 +200,7 @@ pub mod reader {
 pub mod builder {
     use crate::core::websocket::frame::Frame;
 
-    pub fn build(frame: Frame) -> Vec<u8> {
+    pub fn build(frame: &Frame) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![];
 
         // Moves fin byte towards MSB
