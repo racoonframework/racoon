@@ -180,7 +180,7 @@ impl WebSocket {
         base64::engine::general_purpose::STANDARD.encode(hash_result)
     }
 
-    pub async fn message_with_limit(&mut self, max_payload_size: u64) -> Option<Message> {
+    pub async fn receive_message_with_limit(&mut self, max_payload_size: u64) -> Option<Message> {
         if !(*self.receive_next) {
             return None;
         };
@@ -233,7 +233,7 @@ impl WebSocket {
         }
     }
     pub async fn message(&mut self) -> Option<Message> {
-        self.message_with_limit(DEFAULT_MAX_PAYLOAD_SIZE).await
+        self.receive_message_with_limit(DEFAULT_MAX_PAYLOAD_SIZE).await
     }
 
     pub async fn send_text<S: AsRef<str>>(&self, message: S) -> std::io::Result<()> {
