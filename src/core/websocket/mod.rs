@@ -1,6 +1,8 @@
 pub mod frame;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use base64::Engine;
 use serde_json::Value;
@@ -31,7 +33,7 @@ pub struct WebSocket {
     pub uid: String,
     stream: Arc<Stream>,
     request_validated: bool,
-    receive_next: Arc<bool>,
+    receive_next: Arc<AtomicBool>,
     headers: Headers,
     body: Vec<u8>,
 }
@@ -82,7 +84,7 @@ impl WebSocket {
                     uid: Uuid::new_v4().to_string(),
                     stream: request.stream.clone(),
                     request_validated: false,
-                    receive_next: Arc::new(false),
+                    receive_next: Arc::new(AtomicBool::new(true)),
                     headers: Headers::new(),
                     body: Vec::new(),
                 };
@@ -90,6 +92,13 @@ impl WebSocket {
             }
         };
 
+        // Start ping frames
+        let stream = instance.stream.clone();
+        let receive_next = instance.receive_next.clone();
+
+        tokio::spawn(async move {
+            Self::ping_with_interval(stream, receive_next).await;
+        });
         (instance, true)
     }
 
@@ -129,11 +138,11 @@ impl WebSocket {
             return Err("Upgrade header is not set to websocket.".to_string());
         }
 
-        let mut instance = Self {
+        let instance = Self {
             uid: Uuid::new_v4().to_string(),
             stream: request.stream.clone(),
             request_validated: true,
-            receive_next: Arc::new(false),
+            receive_next: Arc::new(AtomicBool::new(false)),
             headers: Headers::new(),
             body: Vec::new(),
         };
@@ -145,7 +154,7 @@ impl WebSocket {
             }
         };
 
-        instance.receive_next = Arc::new(true);
+        instance.receive_next.store(true, Ordering::Relaxed);
         Ok(instance)
     }
 
@@ -180,8 +189,57 @@ impl WebSocket {
         base64::engine::general_purpose::STANDARD.encode(hash_result)
     }
 
+    async fn ping_with_interval(stream: Arc<Stream>, receive_next: Arc<AtomicBool>) {
+        racoon_debug!("Sending periodic ping frames...");
+
+        let mut interval = tokio::time::interval(Duration::from_secs(10));
+
+        // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
+        let frame = Frame {
+            fin: 1,
+            op_code: 9,
+            payload: vec![],
+        };
+
+        loop {
+            interval.tick().await;
+
+            let bytes = frame::builder::build(&frame);
+            match stream.write_chunk(&bytes).await {
+                Ok(()) => {}
+                Err(error) => {
+                    // Ping failed, so if messages are waiting, stops waiting new messages.
+                    receive_next.store(false, Ordering::Relaxed);
+                    racoon_debug!("Ping failed. Error: {}", error);
+                    break;
+                }
+            }
+        }
+    }
+
+    async fn send_pong(&self) {
+        racoon_debug!("Sending pong frame.");
+
+        // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
+        let frame = Frame {
+            fin: 1,
+            op_code: 10,
+            payload: vec![],
+        };
+
+        let bytes = frame::builder::build(&frame);
+        match self.stream.write_chunk(&bytes).await {
+            Ok(()) => {},
+            Err(error) => {
+                // Pong failed, so stops receiving messages.
+                self.receive_next.store(false, Ordering::Relaxed);
+                racoon_debug!("Pong failed. Error: {}", error);
+            }
+        }
+    }
+
     pub async fn receive_message_with_limit(&mut self, max_payload_size: u64) -> Option<Message> {
-        if !(*self.receive_next) {
+        if !self.receive_next.load(Ordering::Relaxed) {
             return None;
         };
 
@@ -191,7 +249,7 @@ impl WebSocket {
             let frame = match reader::read_frame(self.stream.clone(), max_payload_size).await {
                 Ok(frame) => frame,
                 Err(error) => {
-                    self.receive_next = Arc::from(false);
+                    self.receive_next.load(Ordering::Relaxed);
                     return Some(Message::Close(1000, error.to_string()));
                 }
             };
@@ -216,12 +274,13 @@ impl WebSocket {
                     Some(Message::Binary(frame.payload))
                 } else if frame.op_code == 8 {
                     // Connection close frame
-                    self.receive_next = Arc::from(false);
+                    self.receive_next.store(false, Ordering::Relaxed);
                     let close_code = self.close_code_from_payload(&frame.payload);
-                    let close_message = self.close_message_from_payload(&frame.payload); 
+                    let close_message = self.close_message_from_payload(&frame.payload);
                     Some(Message::Close(close_code, close_message))
                 } else if frame.op_code == 9 {
                     // Ping frame
+                    self.send_pong().await;
                     Some(Message::Ping())
                 } else if frame.op_code == 10 {
                     // Pong frame
@@ -232,8 +291,10 @@ impl WebSocket {
             }
         }
     }
+
     pub async fn message(&mut self) -> Option<Message> {
-        self.receive_message_with_limit(DEFAULT_MAX_PAYLOAD_SIZE).await
+        self.receive_message_with_limit(DEFAULT_MAX_PAYLOAD_SIZE)
+            .await
     }
 
     pub async fn send_text<S: AsRef<str>>(&self, message: S) -> std::io::Result<()> {
@@ -245,7 +306,7 @@ impl WebSocket {
             payload: message.as_bytes().to_vec(),
         };
 
-        let bytes = frame::builder::build(frame);
+        let bytes = frame::builder::build(&frame);
         Ok(self.stream.write_chunk(&bytes).await?)
     }
 
@@ -258,7 +319,7 @@ impl WebSocket {
             payload,
         };
 
-        let bytes = frame::builder::build(frame);
+        let bytes = frame::builder::build(&frame);
         Ok(self.stream.write_chunk(&bytes).await?)
     }
 
