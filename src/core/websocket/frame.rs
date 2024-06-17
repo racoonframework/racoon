@@ -121,6 +121,9 @@ pub mod reader {
             buffer.extend(chunk);
         }
 
+        // Misread bytes
+        let extra_read: Vec<u8> = buffer.drain(actual_payload_length as usize..).collect();
+
         // Decodes websocket message using masking bit
         if let Some(masking_key) = masking_key {
             // Masking key is 4 bit
@@ -130,8 +133,7 @@ pub mod reader {
             }
         }
 
-        if buffer.len() > actual_payload_length as usize {
-            let extra_read: Vec<u8> = buffer.drain(actual_payload_length as usize..).collect();
+        if extra_read.len() > 0 {
             let _ = stream.restore_payload(&extra_read).await;
         }
 
@@ -331,8 +333,7 @@ pub mod builder {
 
             for i in 0..frame.payload.len() {
                 let mask_index = i % 4;
-                payload[i] =
-                    (frame.payload[i] as usize ^ mask_bytes[mask_index] as usize) as u8;
+                payload[i] = (frame.payload[i] as usize ^ mask_bytes[mask_index] as usize) as u8;
             }
         }
 
