@@ -186,14 +186,14 @@ impl WebSocket {
         base64::engine::general_purpose::STANDARD.encode(hash_result)
     }
 
-    pub async fn ping_with_interval(
-        ping_lock: Arc<AtomicBool>,
-        stream: Arc<Stream>,
-        receive_next: Arc<AtomicBool>,
-    ) {
+    pub async fn ping_with_interval(&self, duration: Duration) {
+        let ping_lock = self.ping_lock.clone();
+        let stream = self.stream.clone();
+        let receive_next = self.receive_next.clone();
+
         racoon_debug!("Sending periodic ping frames...");
 
-        let mut interval = tokio::time::interval(Duration::from_secs(10));
+        let mut interval = tokio::time::interval(duration);
 
         // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
         let frame = Frame {
