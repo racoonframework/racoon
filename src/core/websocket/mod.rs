@@ -124,7 +124,7 @@ impl WebSocket {
         let sec_websocket_key;
         if let Some(value) = request.headers.value("Sec-WebSocket-Key") {
             // According to RFC, any leading or trailing spaces must be removed.
-            sec_websocket_key = value;
+            sec_websocket_key = value.trim().to_string();
         } else {
             return Err("Sec-WebSocket-Key header is missing".to_string());
         }
