@@ -210,7 +210,7 @@ pub mod reader {
         use crate::core::websocket::frame::{builder, Frame};
 
         #[tokio::test]
-        async fn test_read_single() {
+        async fn test_read_single_frame() {
             let frame = Frame {
                 fin: 1,
                 op_code: 1,
@@ -231,13 +231,61 @@ pub mod reader {
             assert_eq!(frame.op_code, decoded_frame.op_code);
             assert_eq!(frame.payload, decoded_frame.payload);
         }
+
+        #[tokio::test]
+        async fn test_read_multiple_frames() {
+            let frame = Frame {
+                fin: 1,
+                op_code: 1,
+                payload: "Hello World".as_bytes().to_vec(),
+            };
+
+            let text_frame_bytes = builder::build(&frame);
+
+            let frame2 = Frame {
+                fin: 1,
+                op_code: 9,
+                payload: "PING".as_bytes().to_vec(),
+            };
+            let ping_frame_bytes = builder::build(&frame2);
+
+            let mut multiple_frame_bytes = text_frame_bytes;
+            multiple_frame_bytes.extend(&ping_frame_bytes);
+
+            let test_stream_wrapper = TestStreamWrapper::new(multiple_frame_bytes, 1024);
+            let stream: Arc<Box<dyn AbstractStream + 'static>> =
+                Arc::new(Box::new(test_stream_wrapper));
+
+            let result1 = super::read_frame(stream.clone(), 500).await;
+
+            // Check text frame
+            assert_eq!(true, result1.is_ok());
+            let decoded_frame = result1.unwrap();
+
+            assert_eq!(frame.fin, decoded_frame.fin);
+            assert_eq!(frame.op_code, decoded_frame.op_code);
+            assert_eq!(frame.payload, decoded_frame.payload);
+
+            // Check ping frame
+            let result2 = super::read_frame(stream, 500).await;
+
+            // Check text frame
+            assert_eq!(true, result2.is_ok());
+            let decoded_frame2 = result2.unwrap();
+
+            assert_eq!(frame2.fin, decoded_frame2.fin);
+            assert_eq!(frame2.op_code, decoded_frame2.op_code);
+            assert_eq!(frame2.payload, decoded_frame2.payload);
+        }
     }
 }
 
 pub mod builder {
+    use rand::Rng;
+
     use crate::core::websocket::frame::Frame;
 
-    pub fn build(frame: &Frame) -> Vec<u8> {
+    pub fn build_opt(frame: &Frame, mask: bool) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![];
 
         // Moves fin byte towards MSB
@@ -250,8 +298,14 @@ pub mod builder {
 
         // Calculate the length representation and push it to the buffer
         if actual_payload_length < 126 {
-            let second_byte = actual_payload_length as u8;
-            buffer.push(second_byte); // No masking
+            let mut second_byte = actual_payload_length as u8;
+
+            if mask {
+                // Adds 1 to MSB
+                second_byte = second_byte | 0b10000000;
+            }
+
+            buffer.push(second_byte);
         } else if actual_payload_length < (2_usize.pow(16)) {
             // Payload length is between 126 and 65535 bytes
             buffer.push(126); // Indicates length is in next 2 bytes
@@ -268,8 +322,61 @@ pub mod builder {
             buffer.extend_from_slice(&length_bytes);
         }
 
+        let mut payload = frame.payload.clone();
+
+        if mask {
+            let mut thread_rng = rand::thread_rng();
+            let mask_bytes: [u8; 4] = thread_rng.gen();
+            buffer.extend_from_slice(&mask_bytes);
+
+            for i in 0..frame.payload.len() {
+                let mask_index = i % 4;
+                payload[i] =
+                    (frame.payload[i] as usize ^ mask_bytes[mask_index] as usize) as u8;
+            }
+        }
+
         // Append the payload data to the buffer
-        buffer.extend(frame.payload.iter());
+        buffer.extend_from_slice(&payload);
         buffer
+    }
+
+    pub fn build(frame: &Frame) -> Vec<u8> {
+        // Disables masking message for server to client.
+        build_opt(frame, false)
+    }
+
+    #[cfg(test)]
+    pub mod test {
+        use std::sync::Arc;
+
+        use crate::core::stream::{AbstractStream, TestStreamWrapper};
+        use crate::core::websocket::frame::reader::read_frame;
+        use crate::core::websocket::frame::Frame;
+
+        use super::build_opt;
+
+        #[tokio::test]
+        async fn test_frame_build_server() {
+            let frame = Frame {
+                fin: 0,
+                op_code: 1,
+                payload: "Hello World".as_bytes().to_vec(),
+            };
+
+            let frame_bytes = build_opt(&frame, true);
+
+            let test_stream_wrapper = TestStreamWrapper::new(frame_bytes, 1024);
+            let stream: Arc<Box<dyn AbstractStream + 'static>> =
+                Arc::new(Box::new(test_stream_wrapper));
+
+            let reader = read_frame(stream, 1000).await;
+            assert_eq!(true, reader.is_ok());
+
+            let frame = reader.unwrap();
+            assert_eq!(frame.fin, 0);
+            assert_eq!(frame.op_code, 1);
+            assert_eq!(frame.payload, "Hello World".as_bytes().to_vec());
+        }
     }
 }
