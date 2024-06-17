@@ -240,14 +240,14 @@ pub mod reader {
                 payload: "Hello World".as_bytes().to_vec(),
             };
 
-            let text_frame_bytes = builder::build(&frame);
+            let text_frame_bytes = builder::build_opt(&frame, true);
 
             let frame2 = Frame {
                 fin: 1,
                 op_code: 9,
                 payload: "PING".as_bytes().to_vec(),
             };
-            let ping_frame_bytes = builder::build(&frame2);
+            let ping_frame_bytes = builder::build_opt(&frame2, true);
 
             let mut multiple_frame_bytes = text_frame_bytes;
             multiple_frame_bytes.extend(&ping_frame_bytes);
