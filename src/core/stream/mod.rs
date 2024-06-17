@@ -1,5 +1,6 @@
 use std::future::Future;
-use std::io::ErrorKind;
+use std::io::{ErrorKind, Read};
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -12,7 +13,9 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::racoon_debug;
 
-pub type StreamResult<T> = Box<dyn Future<Output = T> + Sync + Send + Unpin>;
+use super::response::response_to_bytes;
+
+pub type StreamResult<'a, T> = Box<dyn Future<Output = T> + Sync + Send + Unpin + 'a>;
 pub type Stream = Box<dyn AbstractStream>;
 
 pub trait AbstractStream: Sync + Send {
@@ -415,6 +418,81 @@ impl AbstractStream for TlsTcpStreamWrapper {
         Box::new(Box::pin(async move {
             let mut stream = stream_ref.lock().await;
             stream.shutdown().await?;
+            Ok(())
+        }))
+    }
+}
+
+struct TestStreamWrapper {
+    test_data: Arc<Mutex<Vec<u8>>>,
+    buffer_size: usize,
+    is_shutdown: Arc<AtomicBool>,
+    restored_payload: Arc<Mutex<Option<Vec<u8>>>>,
+}
+
+impl AbstractStream for TestStreamWrapper {
+    fn buffer_size(&self) -> StreamResult<usize> {
+        Box::new(Box::pin(async move { 1024 }))
+    }
+
+    fn peer_addr(&self) -> StreamResult<Option<String>> {
+        Box::new(Box::pin(async move { None }))
+    }
+
+    fn shutdown(&self) -> StreamResult<std::io::Result<()>> {
+        Box::new(Box::pin(async move { Ok(()) }))
+    }
+
+    fn write_chunk(&self, _: &[u8]) -> StreamResult<std::io::Result<()>> {
+        Box::new(Box::pin(async move { Ok(()) }))
+    }
+
+    fn read_chunk(&self) -> StreamResult<std::io::Result<Vec<u8>>> {
+        Box::new(Box::pin(async move {
+            let restored_payload_ref = self.restored_payload.clone();
+            let mut restored_payload = restored_payload_ref.lock().await;
+
+            // Reads bytes from restored payload if any.
+            if let Some(restored_bytes) = restored_payload.take() {
+                if restored_bytes.len() > 0 {
+                    return Ok(restored_bytes);
+                }
+            };
+
+            let test_data_ref = self.test_data.clone();
+            let mut test_data = test_data_ref.lock().await;
+
+            // Reads bytes from test data
+            let read_size = std::cmp::min(self.buffer_size, test_data.len());
+            if read_size == 0 {
+                return Err(std::io::Error::other("No bytes left to read."));
+            }
+
+            let removed_bytes = test_data.drain(0..read_size).collect();
+            Ok(removed_bytes)
+        }))
+    }
+
+    fn restored_len(&self) -> StreamResult<usize> {
+        Box::new(Box::pin(async move {
+            let restored_payload_ref = self.restored_payload.clone();
+            let restored_payload = restored_payload_ref.lock().await;
+
+            if let Some(restored_payload) = restored_payload.as_ref() {
+                return restored_payload.len();
+            }
+
+            0
+        }))
+    }
+
+    fn restore_payload(&self, bytes: &[u8]) -> StreamResult<std::io::Result<()>> {
+        let bytes = bytes.to_vec();
+
+        Box::new(Box::pin(async move {
+            let restored_payload_ref = self.restored_payload.clone();
+            let mut restored_payload = restored_payload_ref.lock().await;
+            *restored_payload = Some(bytes);
             Ok(())
         }))
     }
