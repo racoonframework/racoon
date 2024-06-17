@@ -13,8 +13,6 @@ use tokio_rustls::TlsAcceptor;
 
 use crate::racoon_debug;
 
-use super::response::response_to_bytes;
-
 pub type StreamResult<'a, T> = Box<dyn Future<Output = T> + Sync + Send + Unpin + 'a>;
 pub type Stream = Box<dyn AbstractStream>;
 
