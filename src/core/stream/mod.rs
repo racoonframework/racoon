@@ -3,8 +3,6 @@ use std::io::{ErrorKind, Read};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
-use rustls::lock::Mutex;
-use sha1::digest::const_oid::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, UnixStream};
