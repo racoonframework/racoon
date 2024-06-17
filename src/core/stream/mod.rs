@@ -3,6 +3,8 @@ use std::io::{ErrorKind, Read};
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
+use rustls::lock::Mutex;
+use sha1::digest::const_oid::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::io::{ReadHalf, WriteHalf};
 use tokio::net::{TcpStream, UnixStream};
@@ -426,6 +428,17 @@ pub struct TestStreamWrapper {
     buffer_size: usize,
     is_shutdown: Arc<AtomicBool>,
     restored_payload: Arc<Mutex<Option<Vec<u8>>>>,
+}
+
+impl TestStreamWrapper {
+    pub fn new(test_data: Vec<u8>, buffer_size: usize) -> Self {
+        Self {
+            test_data: Arc::new(Mutex::new(test_data)),
+            buffer_size,
+            is_shutdown: Arc::new(AtomicBool::new(false)),
+            restored_payload: Arc::new(Mutex::new(None)),
+        }
+    }
 }
 
 impl AbstractStream for TestStreamWrapper {
