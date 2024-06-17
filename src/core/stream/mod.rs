@@ -421,7 +421,7 @@ impl AbstractStream for TlsTcpStreamWrapper {
     }
 }
 
-struct TestStreamWrapper {
+pub struct TestStreamWrapper {
     test_data: Arc<Mutex<Vec<u8>>>,
     buffer_size: usize,
     is_shutdown: Arc<AtomicBool>,
