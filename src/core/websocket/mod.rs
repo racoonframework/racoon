@@ -201,6 +201,7 @@ impl WebSocket {
             op_code: 9,
             payload: vec![],
         };
+
         let bytes = frame::builder::build(&frame);
         interval.tick().await;
 
