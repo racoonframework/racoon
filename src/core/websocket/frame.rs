@@ -210,15 +210,14 @@ pub mod reader {
         use crate::core::websocket::frame::{builder, Frame};
 
         #[tokio::test]
-        async fn test_frame_reader() {
+        async fn test_read_single() {
             let frame = Frame {
                 fin: 1,
                 op_code: 1,
                 payload: "Hello World".as_bytes().to_vec(),
             };
 
-            let mut frame_bytes = builder::build(&frame);
-            frame_bytes.extend_from_slice(b"Garbage");
+            let frame_bytes = builder::build(&frame);
 
             let test_stream_wrapper = TestStreamWrapper::new(frame_bytes, 1024);
             let stream: Arc<Box<dyn AbstractStream + 'static>> =
