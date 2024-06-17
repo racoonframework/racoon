@@ -152,6 +152,7 @@ impl WebSocket {
         };
 
         instance.receive_next.store(true, Ordering::Relaxed);
+        instance.ping_with_interval(Duration::from_secs(10)).await;
         Ok(instance)
     }
 
@@ -186,42 +187,44 @@ impl WebSocket {
         base64::engine::general_purpose::STANDARD.encode(hash_result)
     }
 
-    pub async fn ping_with_interval(&self, duration: Duration) {
+    async fn ping_with_interval(&self, duration: Duration) {
         let ping_lock = self.ping_lock.clone();
         let stream = self.stream.clone();
         let receive_next = self.receive_next.clone();
 
-        racoon_debug!("Sending periodic ping frames...");
+        tokio::spawn(async move {
+            racoon_debug!("Sending periodic ping frames...");
 
-        let mut interval = tokio::time::interval(duration);
+            let mut interval = tokio::time::interval(duration);
 
-        // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
-        let frame = Frame {
-            fin: 1,
-            op_code: 9,
-            payload: vec![],
-        };
+            // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
+            let frame = Frame {
+                fin: 1,
+                op_code: 9,
+                payload: vec![],
+            };
 
-        let bytes = frame::builder::build(&frame);
-        interval.tick().await;
+            let bytes = frame::builder::build(&frame);
+            interval.tick().await;
 
-        loop {
-            racoon_debug!("Sending ping...");
+            loop {
+                racoon_debug!("Sending ping...");
 
-            if !ping_lock.load(Ordering::Relaxed) {
-                match stream.write_chunk(&bytes).await {
-                    Ok(()) => {}
-                    Err(error) => {
-                        // Ping failed, so if messages are waiting, stops waiting new messages.
-                        receive_next.store(false, Ordering::Relaxed);
-                        racoon_debug!("Ping failed. Error: {}", error);
-                        break;
+                if !ping_lock.load(Ordering::Relaxed) {
+                    match stream.write_chunk(&bytes).await {
+                        Ok(()) => {}
+                        Err(error) => {
+                            // Ping failed, so if messages are waiting, stops waiting new messages.
+                            receive_next.store(false, Ordering::Relaxed);
+                            racoon_debug!("Ping failed. Error: {}", error);
+                            break;
+                        }
                     }
                 }
-            }
 
-            interval.tick().await;
-        }
+                interval.tick().await;
+            }
+        });
     }
 
     async fn send_pong(&self) {
