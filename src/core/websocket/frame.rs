@@ -130,6 +130,11 @@ pub mod reader {
             }
         }
 
+        if buffer.len() > actual_payload_length as usize {
+            let extra_read: Vec<u8> = buffer.drain(actual_payload_length as usize..).collect();
+            let _ = stream.restore_payload(&extra_read).await;
+        }
+
         Ok(Frame {
             fin,
             op_code,
