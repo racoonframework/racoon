@@ -34,6 +34,7 @@ pub struct WebSocket {
     stream: Arc<Stream>,
     request_validated: bool,
     receive_next: Arc<AtomicBool>,
+    ping_lock: Arc<AtomicBool>,
     headers: Headers,
     body: Vec<u8>,
 }
@@ -45,6 +46,7 @@ impl Clone for WebSocket {
             stream: self.stream.clone(),
             request_validated: self.request_validated.clone(),
             receive_next: self.receive_next.clone(),
+            ping_lock: self.ping_lock.clone(),
             headers: self.headers.clone(),
             body: self.body.clone(),
         }
@@ -85,6 +87,7 @@ impl WebSocket {
                     stream: request.stream.clone(),
                     request_validated: false,
                     receive_next: Arc::new(AtomicBool::new(true)),
+                    ping_lock: Arc::new(AtomicBool::new(false)),
                     headers: Headers::new(),
                     body: Vec::new(),
                 };
@@ -92,13 +95,6 @@ impl WebSocket {
             }
         };
 
-        // Start ping frames
-        let stream = instance.stream.clone();
-        let receive_next = instance.receive_next.clone();
-
-        tokio::spawn(async move {
-            Self::ping_with_interval(stream, receive_next).await;
-        });
         (instance, true)
     }
 
@@ -143,6 +139,7 @@ impl WebSocket {
             stream: request.stream.clone(),
             request_validated: true,
             receive_next: Arc::new(AtomicBool::new(false)),
+            ping_lock: Arc::new(AtomicBool::new(false)),
             headers: Headers::new(),
             body: Vec::new(),
         };
@@ -189,7 +186,11 @@ impl WebSocket {
         base64::engine::general_purpose::STANDARD.encode(hash_result)
     }
 
-    async fn ping_with_interval(stream: Arc<Stream>, receive_next: Arc<AtomicBool>) {
+    pub async fn ping_with_interval(
+        ping_lock: Arc<AtomicBool>,
+        stream: Arc<Stream>,
+        receive_next: Arc<AtomicBool>,
+    ) {
         racoon_debug!("Sending periodic ping frames...");
 
         let mut interval = tokio::time::interval(Duration::from_secs(10));
@@ -200,24 +201,32 @@ impl WebSocket {
             op_code: 9,
             payload: vec![],
         };
+        let bytes = frame::builder::build(&frame);
+        interval.tick().await;
 
         loop {
-            interval.tick().await;
+            racoon_debug!("Sending ping...");
 
-            let bytes = frame::builder::build(&frame);
-            match stream.write_chunk(&bytes).await {
-                Ok(()) => {}
-                Err(error) => {
-                    // Ping failed, so if messages are waiting, stops waiting new messages.
-                    receive_next.store(false, Ordering::Relaxed);
-                    racoon_debug!("Ping failed. Error: {}", error);
-                    break;
+            if !ping_lock.load(Ordering::Relaxed) {
+                match stream.write_chunk(&bytes).await {
+                    Ok(()) => {}
+                    Err(error) => {
+                        // Ping failed, so if messages are waiting, stops waiting new messages.
+                        receive_next.store(false, Ordering::Relaxed);
+                        racoon_debug!("Ping failed. Error: {}", error);
+                        break;
+                    }
                 }
             }
+
+            interval.tick().await;
         }
     }
 
     async fn send_pong(&self) {
+        // Stop pinging
+        self.ping_lock.store(true, Ordering::Relaxed);
+
         racoon_debug!("Sending pong frame.");
 
         // More information: https://datatracker.ietf.org/doc/html/rfc6455#section-5.5.2
@@ -229,13 +238,16 @@ impl WebSocket {
 
         let bytes = frame::builder::build(&frame);
         match self.stream.write_chunk(&bytes).await {
-            Ok(()) => {},
+            Ok(()) => {}
             Err(error) => {
                 // Pong failed, so stops receiving messages.
                 self.receive_next.store(false, Ordering::Relaxed);
                 racoon_debug!("Pong failed. Error: {}", error);
             }
         }
+
+        // Continue ping
+        self.ping_lock.store(false, Ordering::Relaxed);
     }
 
     pub async fn receive_message_with_limit(&mut self, max_payload_size: u64) -> Option<Message> {
@@ -249,7 +261,8 @@ impl WebSocket {
             let frame = match reader::read_frame(self.stream.clone(), max_payload_size).await {
                 Ok(frame) => frame,
                 Err(error) => {
-                    self.receive_next.load(Ordering::Relaxed);
+                    // Stops waiting for new messages
+                    self.receive_next.store(false, Ordering::Relaxed);
                     return Some(Message::Close(1000, error.to_string()));
                 }
             };
@@ -298,6 +311,9 @@ impl WebSocket {
     }
 
     pub async fn send_text<S: AsRef<str>>(&self, message: S) -> std::io::Result<()> {
+        // Stops pinging
+        self.ping_lock.store(true, Ordering::Relaxed);
+
         let message = message.as_ref();
 
         let frame = Frame {
@@ -307,10 +323,16 @@ impl WebSocket {
         };
 
         let bytes = frame::builder::build(&frame);
-        Ok(self.stream.write_chunk(&bytes).await?)
+        self.stream.write_chunk(&bytes).await?;
+
+        // Continue pinging
+        self.ping_lock.store(false, Ordering::Relaxed);
+        Ok(())
     }
 
     pub async fn send_bytes<B: AsRef<[u8]>>(&self, bytes: B) -> std::io::Result<()> {
+        // Stops pinging
+
         let payload = Vec::from(bytes.as_ref());
 
         let frame = Frame {
@@ -320,7 +342,11 @@ impl WebSocket {
         };
 
         let bytes = frame::builder::build(&frame);
-        Ok(self.stream.write_chunk(&bytes).await?)
+        self.stream.write_chunk(&bytes).await?;
+
+        // Continue pinging
+        self.ping_lock.store(false, Ordering::Relaxed);
+        Ok(())
     }
 
     pub async fn send_json(&self, json: &Value) -> std::io::Result<()> {
