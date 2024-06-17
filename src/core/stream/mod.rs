@@ -432,7 +432,7 @@ struct TestStreamWrapper {
 
 impl AbstractStream for TestStreamWrapper {
     fn buffer_size(&self) -> StreamResult<usize> {
-        Box::new(Box::pin(async move { 1024 }))
+        Box::new(Box::pin(async move { self.buffer_size.clone() }))
     }
 
     fn peer_addr(&self) -> StreamResult<Option<String>> {
