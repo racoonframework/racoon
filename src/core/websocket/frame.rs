@@ -56,8 +56,8 @@ pub mod reader {
 
         let payload_length = payload_length_to_u8(&second_byte);
 
-        // Removes read bytes from the buffer
-        buffer = (&buffer[2..]).to_vec();
+        // Removes two bytes read from the buffer
+        buffer.drain(0..2);
 
         // If length is between 0-125, this is the actual length of the message else actual length is
         // set in the next 8 bytes.
@@ -73,8 +73,8 @@ pub mod reader {
 
             actual_payload_length = payload_length_to_u16(&buffer[..2])? as u64;
 
-            // Removes used bytes
-            buffer = (&buffer[2..]).to_owned();
+            // Removes used 2 bytes
+            buffer.drain(0..2);
         } else {
             // For more than 126 payload length, actual size is in next 8 bytes.
             while buffer.len() < 8 {
@@ -84,8 +84,8 @@ pub mod reader {
 
             actual_payload_length = payload_length_to_u64(&buffer[..8])?;
 
-            // Removes used bytes
-            buffer = (&buffer[8..]).to_owned();
+            // Removes used 8 bytes
+            buffer.drain(0..8);
         }
 
         let masking_key: Option<Vec<u8>>;
@@ -100,8 +100,9 @@ pub mod reader {
             let key = (&buffer[..4]).to_owned();
             masking_key = Some(key);
 
-            // Removes read bytes from the buffer
-            buffer = (&buffer[4..]).to_vec();
+            // Removes read 4 bytes from the buffer
+            buffer.drain(0..4);
+
             racoon_debug!("Websocket masking key: {:?}.", &masking_key);
         } else {
             racoon_debug!("Websocket masking disabled.");
@@ -194,6 +195,38 @@ pub mod reader {
         let mut tmp_bytes = [0; 8];
         tmp_bytes.copy_from_slice(bytes);
         Ok(u64::from_be_bytes(tmp_bytes))
+    }
+
+    #[cfg(test)]
+    pub mod test {
+        use std::sync::Arc;
+
+        use crate::core::stream::{AbstractStream, TestStreamWrapper};
+        use crate::core::websocket::frame::{builder, Frame};
+
+        #[tokio::test]
+        async fn test_frame_reader() {
+            let frame = Frame {
+                fin: 1,
+                op_code: 1,
+                payload: "Hello World".as_bytes().to_vec(),
+            };
+
+            let mut frame_bytes = builder::build(&frame);
+            frame_bytes.extend_from_slice(b"Garbage");
+
+            let test_stream_wrapper = TestStreamWrapper::new(frame_bytes, 1024);
+            let stream: Arc<Box<dyn AbstractStream + 'static>> =
+                Arc::new(Box::new(test_stream_wrapper));
+            let result = super::read_frame(stream, 500).await;
+
+            assert_eq!(true, result.is_ok());
+            let decoded_frame = result.unwrap();
+
+            assert_eq!(frame.fin, decoded_frame.fin);
+            assert_eq!(frame.op_code, decoded_frame.op_code);
+            assert_eq!(frame.payload, decoded_frame.payload);
+        }
     }
 }
 
