@@ -77,6 +77,10 @@ impl AbstractResponse for WebSocket {
 
 impl WebSocket {
     pub async fn from(request: &Request) -> (Self, bool) {
+        Self::from_opt(request, true).await
+    }
+
+    pub async fn from_opt(request: &Request, periodic_ping: bool) -> (Self, bool) {
         let instance = match WebSocket::validate(request).await {
             Ok(instance) => instance,
             Err(error) => {
@@ -94,6 +98,10 @@ impl WebSocket {
                 return (failed, false);
             }
         };
+
+        if periodic_ping {
+            instance.ping_with_interval(Duration::from_secs(10)).await;
+        }
 
         (instance, true)
     }
@@ -152,7 +160,6 @@ impl WebSocket {
         };
 
         instance.receive_next.store(true, Ordering::Relaxed);
-        instance.ping_with_interval(Duration::from_secs(10)).await;
         Ok(instance)
     }
 
