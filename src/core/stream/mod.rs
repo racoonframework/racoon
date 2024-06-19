@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::io::{ErrorKind, Read};
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -449,11 +449,19 @@ impl AbstractStream for TestStreamWrapper {
     }
 
     fn shutdown(&self) -> StreamResult<std::io::Result<()>> {
+        self.is_shutdown.store(true, Ordering::Relaxed);
         Box::new(Box::pin(async move { Ok(()) }))
     }
 
     fn write_chunk(&self, _: &[u8]) -> StreamResult<std::io::Result<()>> {
-        Box::new(Box::pin(async move { Ok(()) }))
+        Box::new(Box::pin(async move {
+            if self.is_shutdown.load(Ordering::Relaxed) {
+                return Err(std::io::Error::other(
+                    "Test Stream is already shutdown. Failed to write chunk.",
+                ));
+            }
+            Ok(())
+        }))
     }
 
     fn read_chunk(&self) -> StreamResult<std::io::Result<Vec<u8>>> {
@@ -467,6 +475,12 @@ impl AbstractStream for TestStreamWrapper {
                     return Ok(restored_bytes);
                 }
             };
+
+            if self.is_shutdown.load(Ordering::Relaxed) {
+                return Err(std::io::Error::other(
+                    "Test Stream is already shutdown. Failed to read chunk.",
+                ));
+            }
 
             let test_data_ref = self.test_data.clone();
             let mut test_data = test_data_ref.lock().await;
