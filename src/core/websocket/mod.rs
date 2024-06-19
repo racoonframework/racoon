@@ -215,6 +215,7 @@ impl WebSocket {
             interval.tick().await;
 
             loop {
+                interval.tick().await;
                 racoon_debug!("Sending ping...");
 
                 if !ping_lock.load(Ordering::Relaxed) {
@@ -228,8 +229,6 @@ impl WebSocket {
                         }
                     }
                 }
-
-                interval.tick().await;
             }
         });
     }
