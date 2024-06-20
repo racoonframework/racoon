@@ -84,7 +84,7 @@ impl WebSocket {
         let instance = match WebSocket::validate(request).await {
             Ok(instance) => instance,
             Err(error) => {
-                racoon_error!("WS Error: {}", error.to_owned());
+                racoon_error!("WS Error: {}", error);
 
                 let failed = Self {
                     uid: Uuid::new_v4().to_string(),
