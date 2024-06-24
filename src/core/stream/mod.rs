@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::io::{ErrorKind, Read};
+use std::io::ErrorKind;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
