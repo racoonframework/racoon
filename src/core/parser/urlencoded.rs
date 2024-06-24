@@ -46,7 +46,7 @@ impl UrlEncodedParser {
         })
     }
 
-    pub async fn query_params(&self) -> Result<FormFields, FormFieldError> {
+    pub async fn read_query_params_from_stream(&self) -> Result<FormFields, FormFieldError> {
         let max_body_size = self
             .form_constraints
             .max_body_size(self.stream.buffer_size().await);
@@ -79,7 +79,7 @@ impl UrlEncodedParser {
         form_constraints: Arc<FormConstraints>,
     ) -> Result<FormData, FormFieldError> {
         let parser = UrlEncodedParser::from(stream, headers, form_constraints)?;
-        let params = parser.query_params().await?;
+        let params = parser.read_query_params_from_stream().await?;
         Ok(params)
     }
 }
@@ -96,7 +96,7 @@ pub mod test {
 
     use super::UrlEncodedParser;
 
-    #[tokio::test]
+    #[tokio::test()]
     async fn test_url_encode_parser() {
         let mut headers = Headers::new();
         let test_data = b"name=John&location=ktm".to_vec();
