@@ -46,6 +46,10 @@ impl UrlEncodedParser {
         })
     }
 
+    ///
+    /// Reads body from the stream equal to the `Content-Length` specified in the header, decodes
+    /// url encoded raw body and returns the result.
+    ///
     async fn read_query_params_from_stream(&self) -> Result<FormFields, FormFieldError> {
         let max_body_size = self
             .form_constraints
@@ -73,6 +77,9 @@ impl UrlEncodedParser {
         }
     }
 
+    ///
+    /// Returns parsing result for url encoded request body considering form constraints.
+    ///
     pub async fn parse(
         stream: Arc<Stream>,
         headers: &Headers,
@@ -112,7 +119,8 @@ pub mod test {
             HashMap::new(),
         ));
 
-        let url_encode_parser = UrlEncodedParser::parse(Arc::new(stream), &headers, form_constraints).await;
+        let url_encode_parser =
+            UrlEncodedParser::parse(Arc::new(stream), &headers, form_constraints).await;
         assert_eq!(true, url_encode_parser.is_ok());
 
         let parse_result = url_encode_parser.unwrap();
