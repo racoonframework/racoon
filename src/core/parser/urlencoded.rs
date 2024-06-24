@@ -1,12 +1,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::core::forms::{
-    FormConstraints,
-    FormData,
-    FormFieldError
-};
-use crate::core::headers::{Headers, HeaderValue};
+use crate::core::forms::{FormConstraints, FormData, FormFieldError};
+use crate::core::headers::{HeaderValue, Headers};
 use crate::core::parser::params::parse_url_encoded;
 
 use crate::core::stream::Stream;
@@ -20,18 +16,27 @@ pub struct UrlEncodedParser {
 }
 
 impl UrlEncodedParser {
-    pub fn from(stream: Arc<Stream>, headers: &Headers,
-                form_constraints: Arc<FormConstraints>) -> Result<UrlEncodedParser, FormFieldError> {
+    pub fn from(
+        stream: Arc<Stream>,
+        headers: &Headers,
+        form_constraints: Arc<FormConstraints>,
+    ) -> Result<UrlEncodedParser, FormFieldError> {
         let content_length;
         if let Some(value) = headers.value("Content-Length") {
             content_length = match value.parse::<usize>() {
                 Ok(value) => value,
                 Err(_) => {
-                    return Err(FormFieldError::Others(None, "Invalid content length header.".to_owned()));
+                    return Err(FormFieldError::Others(
+                        None,
+                        "Invalid content length header.".to_owned(),
+                    ));
                 }
             }
         } else {
-            return Err(FormFieldError::Others(None, "Content-Length header is missing.".to_owned()));
+            return Err(FormFieldError::Others(
+                None,
+                "Content-Length header is missing.".to_owned(),
+            ));
         }
 
         Ok(UrlEncodedParser {
@@ -42,7 +47,9 @@ impl UrlEncodedParser {
     }
 
     pub async fn query_params(&self) -> Result<FormFields, FormFieldError> {
-        let max_body_size = self.form_constraints.max_body_size(self.stream.buffer_size().await);
+        let max_body_size = self
+            .form_constraints
+            .max_body_size(self.stream.buffer_size().await);
 
         if self.content_length > max_body_size {
             return Err(FormFieldError::MaxBodySizeExceed);
@@ -66,10 +73,50 @@ impl UrlEncodedParser {
         }
     }
 
-    pub async fn parse(stream: Arc<Stream>, headers: &Headers, form_constraints: Arc<FormConstraints>)
-                       -> Result<FormData, FormFieldError> {
+    pub async fn parse(
+        stream: Arc<Stream>,
+        headers: &Headers,
+        form_constraints: Arc<FormConstraints>,
+    ) -> Result<FormData, FormFieldError> {
         let parser = UrlEncodedParser::from(stream, headers, form_constraints)?;
         let params = parser.query_params().await?;
         Ok(params)
+    }
+}
+
+#[cfg(test)]
+pub mod test {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use crate::core::forms::FormConstraints;
+    use crate::core::headers::{HeaderValue, Headers};
+    use crate::core::shortcuts::SingleText;
+    use crate::core::stream::{AbstractStream, TestStreamWrapper};
+
+    use super::UrlEncodedParser;
+
+    #[tokio::test()]
+    async fn test_url_encode_parser() {
+        let mut headers = Headers::new();
+        let test_data = b"name=John&location=ktm".to_vec();
+        headers.set("Content-Length", test_data.len().to_string());
+
+        let stream: Box<dyn AbstractStream> = Box::new(TestStreamWrapper::new(test_data, 1024));
+
+        let form_constraints = Arc::new(FormConstraints::new(
+            2 * 1024 * 1024,
+            2 * 1024 * 1024,
+            500 * 1024 * 1024,
+            2 * 1024 * 1024,
+            HashMap::new(),
+        ));
+
+        let url_encode_parser = UrlEncodedParser::parse(Arc::new(stream), &headers, form_constraints).await;
+        assert_eq!(true, url_encode_parser.is_ok());
+
+        let parse_result = url_encode_parser.unwrap();
+        assert_eq!(Some(&"John".to_string()), parse_result.value("name"));
+        assert_eq!(Some(&"ktm".to_string()), parse_result.value("location"));
     }
 }
