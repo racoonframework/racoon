@@ -2,7 +2,7 @@
 
 <p align="center" style="text-align: center;">
     <img src="logo.png" width="300">
-    
+    <br>
     <a href="https://github.com/racoonframework/racoon/actions/workflows/build.yml">
         <img src="https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg">
     </a>
