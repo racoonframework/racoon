@@ -2,6 +2,9 @@
 
 [![build](https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg)](https://github.com/racoonframework/racoon/actions/workflows/build.yml)
 
+<img src="logo.png" width="300" height="300">
+
+
 Racoon is a fast, fully customizable web framework for Rust focusing on simplicity.
 
 [Learn Racoon](https://racoonframework.github.io)
