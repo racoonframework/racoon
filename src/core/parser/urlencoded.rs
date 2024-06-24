@@ -96,7 +96,7 @@ pub mod test {
 
     use super::UrlEncodedParser;
 
-    #[tokio::test()]
+    #[tokio::test]
     async fn test_url_encode_parser() {
         let mut headers = Headers::new();
         let test_data = b"name=John&location=ktm".to_vec();
