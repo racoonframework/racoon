@@ -17,6 +17,8 @@ use crate::core::stream::Stream;
 use crate::core::websocket::frame::{reader, Frame};
 use crate::{racoon_debug, racoon_error};
 
+use super::stream;
+
 const DEFAULT_MAX_PAYLOAD_SIZE: u64 = 5 * 1024 * 1024; // 5 MiB
 
 pub enum Message {
@@ -214,8 +216,7 @@ impl WebSocket {
                 racoon_debug!("Sending ping...");
 
                 match stream.write_chunk(&bytes).await {
-                    Ok(()) => {
-                    }
+                    Ok(()) => {}
                     Err(error) => {
                         // Ping failed, so if messages are waiting, stops waiting new messages.
                         receive_next.store(false, Ordering::Relaxed);
@@ -341,7 +342,15 @@ impl WebSocket {
         self.send_text(json.to_string().as_str()).await
     }
 
-    pub fn response(self) -> Box<Self> {
+    pub async fn bad_request(self) -> Box<Self> {
+        let mut response: Box<dyn AbstractResponse> =
+            HttpResponse::bad_request().body("Bad Request");
+        let response_bytes = response_to_bytes(&mut response);
+        let _ = self.stream.write_chunk(&response_bytes).await;
+        Box::new(self)
+    }
+
+    pub fn exit(self) -> Box<Self> {
         Box::new(self)
     }
 
