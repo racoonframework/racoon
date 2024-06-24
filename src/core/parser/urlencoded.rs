@@ -46,7 +46,7 @@ impl UrlEncodedParser {
         })
     }
 
-    pub async fn read_query_params_from_stream(&self) -> Result<FormFields, FormFieldError> {
+    async fn read_query_params_from_stream(&self) -> Result<FormFields, FormFieldError> {
         let max_body_size = self
             .form_constraints
             .max_body_size(self.stream.buffer_size().await);
