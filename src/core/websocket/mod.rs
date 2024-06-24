@@ -17,8 +17,6 @@ use crate::core::stream::Stream;
 use crate::core::websocket::frame::{reader, Frame};
 use crate::{racoon_debug, racoon_error};
 
-use super::stream;
-
 const DEFAULT_MAX_PAYLOAD_SIZE: u64 = 5 * 1024 * 1024; // 5 MiB
 
 pub enum Message {
@@ -249,7 +247,7 @@ impl WebSocket {
         }
     }
 
-    pub async fn receive_message_with_limit(&mut self, max_payload_size: u64) -> Option<Message> {
+    pub async fn receive_message_with_limit(&self, max_payload_size: u64) -> Option<Message> {
         if !self.receive_next.load(Ordering::Relaxed) {
             return None;
         };
@@ -304,7 +302,7 @@ impl WebSocket {
         }
     }
 
-    pub async fn message(&mut self) -> Option<Message> {
+    pub async fn message(&self) -> Option<Message> {
         self.receive_message_with_limit(DEFAULT_MAX_PAYLOAD_SIZE)
             .await
     }
