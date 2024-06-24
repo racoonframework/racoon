@@ -224,7 +224,10 @@ impl MultipartParser {
         if let Some(value) = &form_part.name {
             field_name = value.to_owned();
         } else {
-            return Err(FormFieldError::Others(None, "Field name is missing".to_owned()));
+            return Err(FormFieldError::Others(
+                None,
+                "Field name is missing".to_owned(),
+            ));
         }
 
         // Form constraints
@@ -321,7 +324,10 @@ impl MultipartParser {
         if let Some(value) = &form_part.name {
             field_name = value.to_owned();
         } else {
-            return Err(FormFieldError::Others(None, "Field name is missing.".to_owned()));
+            return Err(FormFieldError::Others(
+                None,
+                "Field name is missing.".to_owned(),
+            ));
         }
 
         let max_value_size = self
@@ -364,7 +370,6 @@ impl MultipartParser {
                     form_part.value = Some(value);
 
                     return if &buffer[..FORM_PART_END.len()] == FORM_PART_END {
-
                         self.allow_next_header_read = true;
                         Ok(true)
                     } else {
@@ -500,4 +505,47 @@ pub fn parse_content_disposition_value(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+pub mod tests {
+    use std::{collections::HashMap, sync::Arc};
+
+    use crate::core::forms::{FileFieldShortcut, FormConstraints};
+    use crate::core::headers::{HeaderValue, Headers};
+    use crate::core::shortcuts::SingleText;
+    use crate::core::stream::{AbstractStream, TestStreamWrapper};
+
+    use super::MultipartParser;
+
+    #[tokio::test]
+    async fn test_multipart_parser() {
+        let mut headers = Headers::new();
+        headers.set("Content-Type", "multipart/form-data; boundary=boundary123");
+
+        let test_data = "--boundary123\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nJohn\r\n--boundary123\r\nContent-Disposition: form-data; name=\"location\"\r\n\r\nktm\r\n--boundary123\r\nContent-Disposition: form-data; name=\"file\"; filename=\"example.txt\"\r\nContent-Type: text/plain\r\n\r\nHello World\r\n--boundary123--\r\n".as_bytes().to_vec();
+        headers.set("Content-Length", test_data.len().to_string());
+
+        let stream: Box<dyn AbstractStream> = Box::new(TestStreamWrapper::new(test_data, 1024));
+
+        let form_constraints = Arc::new(FormConstraints::new(
+            500 * 1024 * 1024,
+            2 * 1024 * 1024,
+            500 * 1024 * 1024,
+            2 * 1024 * 1024,
+            HashMap::new(),
+        ));
+
+        let parser = MultipartParser::parse(Arc::new(stream), form_constraints, &headers).await;
+        assert_eq!(true, parser.is_ok());
+
+        let (form_data, files) = parser.unwrap();
+        assert_eq!(Some(&"John".to_string()), form_data.value("name"));
+        assert_eq!(Some(&"ktm".to_string()), form_data.value("location"));
+
+        let file = files.value("file");
+        assert_eq!(true, file.is_some());
+
+        assert_eq!("example.txt".to_string(), file.unwrap().name);
+    }
 }
