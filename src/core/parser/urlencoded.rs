@@ -96,7 +96,7 @@ pub mod test {
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    use crate::core::forms::FormConstraints;
+    use crate::core::forms::{FormConstraints, FormFieldError};
     use crate::core::headers::{HeaderValue, Headers};
     use crate::core::shortcuts::SingleText;
     use crate::core::stream::{AbstractStream, TestStreamWrapper};
@@ -126,5 +126,34 @@ pub mod test {
         let parse_result = url_encode_parser.unwrap();
         assert_eq!(Some(&"John".to_string()), parse_result.value("name"));
         assert_eq!(Some(&"ktm".to_string()), parse_result.value("location"));
+    }
+
+    #[tokio::test()]
+    async fn test_no_content_length_parsing() {
+        let headers = Headers::new();
+        let test_data = b"name=John&location=ktm".to_vec();
+
+        let stream: Box<dyn AbstractStream> = Box::new(TestStreamWrapper::new(test_data, 1024));
+
+        let form_constraints = Arc::new(FormConstraints::new(
+            2 * 1024 * 1024,
+            2 * 1024 * 1024,
+            500 * 1024 * 1024,
+            2 * 1024 * 1024,
+            HashMap::new(),
+        ));
+
+        let url_encode_parser =
+            UrlEncodedParser::parse(Arc::new(stream), &headers, form_constraints).await;
+        assert_eq!(true, url_encode_parser.is_err());
+
+        let form_field_error = url_encode_parser.unwrap_err();
+        match form_field_error {
+            FormFieldError::Others(_, _) => {
+            }
+            _ => {
+                assert!(true)
+            }
+        }
     }
 }
