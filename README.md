@@ -2,7 +2,9 @@
 
 <p align="center">
     <img src="logo.png" width="300">
-    [![build](https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg)](https://github.com/racoonframework/racoon/actions/workflows/build.yml)
+    <a href="https://github.com/racoonframework/racoon/actions/workflows/build.yml">
+        <img src="https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg">
+    </a>
 </p>
 
 
