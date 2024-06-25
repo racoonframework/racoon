@@ -57,6 +57,12 @@ impl FileSessionManager {
     /// else default relative file path `.cache/session`.
     ///
     fn get_db_path() -> String {
+        let is_test = env::var("TEST_SESSION").unwrap_or("false".to_string());
+        if is_test.to_lowercase() == "true" {
+            // Returns Sqlite path for testing
+            return ".cache/test_session".to_string();
+        }
+
         env::var("SESSION_FILE_PATH").unwrap_or(".cache/session".to_string())
     }
 
