@@ -163,7 +163,7 @@ impl MultipartParser {
 
             // Removes scan boundary bytes from buffer
             // Contains only form part header
-            buffer = (&buffer[scan_boundary.len()..]).to_owned();
+            buffer.drain(0..scan_boundary.len());
             self.first_header_scanned = true;
         }
 
