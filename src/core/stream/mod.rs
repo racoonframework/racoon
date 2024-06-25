@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::io::ErrorKind;
+use std::net::Shutdown;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -183,7 +184,17 @@ pub struct UnixStreamWrapper {
 impl UnixStreamWrapper {
     pub fn from(unix_stream: UnixStream, buffer_size: usize) -> std::io::Result<Self> {
         let std_unix_stream = unix_stream.into_std()?;
-        let async_unix_stream = UnixStream::from_std(std_unix_stream.try_clone()?)?;
+
+        let async_unix_stream = match std_unix_stream.try_clone() {
+            Ok(unix_stream) => UnixStream::from_std(unix_stream)?,
+            Err(error) => {
+                racoon_error!("Failed to clone std unix stream.");
+                let shutdown_result = std_unix_stream.shutdown(Shutdown::Both);
+                racoon_debug!("Shutdown result: {:?}", shutdown_result);
+                return Err(error);
+            }
+        };
+
         let async_writer_rw = UnixStream::from_std(std_unix_stream)?;
         let (reader, writer) = tokio::io::split(async_writer_rw);
 
