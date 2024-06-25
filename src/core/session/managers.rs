@@ -60,6 +60,7 @@ impl FileSessionManager {
         let is_test = env::var("TEST_SESSION").unwrap_or("false".to_string());
         if is_test.to_lowercase() == "true" {
             // Returns Sqlite path for testing
+            racoon_debug!("Using test session database.");
             return ".cache/test_session".to_string();
         }
 
