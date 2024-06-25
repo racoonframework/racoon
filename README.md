@@ -62,10 +62,10 @@ use racoon::core::response::status::ResponseStatus;
 use racoon::core::forms::FileField;
 use racoon::core::shortcuts::SingleText;
 
-async fn upload_form(mut request: Request) -> Response {
+async fn upload_form(request: Request) -> Response {
     if request.method == "POST" {
         // Parses request body
-        let (mut form_data, mut files) = request.parse().await;
+        let (form_data, files) = request.parse().await;
         println!("Name: {:?}", form_data.value("name"));
 
         let file = files.value("file");
