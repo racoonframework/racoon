@@ -77,6 +77,8 @@ async fn upload_form(request: Request) -> Response {
 }
 ```
 
+For more information check [form handling guide](https://racoonframework.github.io/reading-form-data/).
+
 ## WebSocket example
 
 ```rust
