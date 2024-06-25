@@ -21,7 +21,7 @@ use crate::core::middleware::Middleware;
 use crate::core::parser::headers::read_request_headers;
 use crate::core::parser::{params, path};
 use crate::core::path::{Path, PathParams, Paths};
-use crate::core::request::Request;
+use crate::core::request::{Request, RequestError};
 use crate::core::response::status::ResponseStatus;
 use crate::core::response::{AbstractResponse, HttpResponse};
 use crate::core::stream::{Stream, TcpStreamWrapper, UnixStreamWrapper};
@@ -406,17 +406,25 @@ impl Server {
             let context = context.clone();
             let tls_acceptor = tls_acceptor.clone();
 
-            let tcp_stream;
-
+            let accept_result;
             tokio::select! {
-                Ok((accepted_stream, _)) = listener.accept() => {
-                    tcp_stream = accepted_stream;
+                result = listener.accept() => {
+                    accept_result = result;
                 }
+
                 _ = Self::wait_shutdown(shutdown_lock.clone()) => {
                     racoon_debug!("Shutting down listener");
                     return Ok(());
                 }
             }
+
+            let tcp_stream= match accept_result {
+                Ok((tcp_stream, _)) => tcp_stream,
+                Err(error) => {
+                    log::error!("Failed to accept connection. Error: {:?}", error);
+                    continue;
+                }
+            };
 
             let request_constraints = request_constraints.clone();
             let form_constraints = form_constraints.clone();
@@ -453,6 +461,7 @@ impl Server {
                     match TcpStreamWrapper::from(tcp_stream, buffer_size.clone()) {
                         Ok(tcp_stream_wrapper) => {
                             let stream = Box::new(tcp_stream_wrapper);
+                            
                             Self::handle_stream(
                                 stream,
                                 scheme,
@@ -552,13 +561,19 @@ impl Server {
                     Ok(result) => result,
                     Err(error) => {
                         racoon_debug!("Failed to parse request. Error: {:?}", error);
-                        let mut bad_request: Box<dyn AbstractResponse> =
-                            HttpResponse::request_header_fields_too_large()
-                                .body("Request header too large.");
 
-                        let response_bytes = response::response_to_bytes(&mut bad_request);
-                        let _ = stream.write_chunk(&response_bytes).await;
-                        let _ = stream.shutdown().await;
+                        match error {
+                            RequestError::HeaderSizeExceed => {
+                                let mut bad_request: Box<dyn AbstractResponse> =
+                                    HttpResponse::request_header_fields_too_large()
+                                        .body("Request header too large.");
+
+                                let response_bytes = response::response_to_bytes(&mut bad_request);
+                                let _ = stream.write_chunk(&response_bytes).await;
+                                let _ = stream.shutdown().await;
+                            }
+                            _ => {}
+                        }
                         break;
                     }
                 };
