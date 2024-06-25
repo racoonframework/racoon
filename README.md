@@ -73,7 +73,7 @@ async fn upload_form(mut request: Request) -> Response {
         return HttpResponse::ok().body("Uploaded");
     }
 
-    HttpResponse::bad_request().body("Failed")
+    HttpResponse::bad_request().body("Use POST method to upload file.")
 }
 ```
 
