@@ -285,7 +285,7 @@ impl MultipartParser {
                     } else {
                         // Form part completed but body is not ended yet
                         // Skips line break \r\n
-                        scan_buffer = (&scan_buffer[CRLF_BREAK.len()..]).to_vec();
+                        scan_buffer.drain(..CRLF_BREAK.len());
                         let _ = self.stream.restore_payload(&scan_buffer.as_ref()).await;
                         form_part.file = Some(temp_file);
                         self.allow_next_header_read = true;
@@ -304,7 +304,7 @@ impl MultipartParser {
                         return Err(FormFieldError::Others(None, error.to_string()));
                     }
                 };
-                scan_buffer = (&scan_buffer[to_copy_position..]).to_vec();
+                scan_buffer.drain(..to_copy_position);
             }
 
             // File ending has not been reached
@@ -366,7 +366,7 @@ impl MultipartParser {
                     let value = String::from_utf8_lossy(&to_copy[..to_copy_range]).to_string();
 
                     // Removes copied bytes from the buffer
-                    buffer = (&buffer[position + scan_boundary_bytes.len()..]).to_vec();
+                    buffer.drain(..position + scan_boundary_bytes.len());
                     form_part.value = Some(value);
 
                     return if &buffer[..FORM_PART_END.len()] == FORM_PART_END {
@@ -375,7 +375,7 @@ impl MultipartParser {
                     } else {
                         // Form part completed but body is not ended yet
                         // Skips line break \r\n
-                        buffer = (&buffer[CRLF_BREAK.len()..]).to_vec();
+                        buffer.drain(..CRLF_BREAK.len());
                         let _ = self.stream.restore_payload(buffer.as_ref()).await;
                         self.allow_next_header_read = true;
                         Ok(false)
