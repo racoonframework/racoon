@@ -133,20 +133,20 @@ async fn main() {
 ## Benchmark
 
 ```shell
-wrk -c8 -d4s -t4 http://127.0.0.1:8080
+wrk -c200 -d8s -t8 http://127.0.0.1:8080
 ```
 
 Result on AMD Ryzen 5 7520U with Radeon Graphics.
 
 ```text
-Running 4s test @ http://127.0.0.1:8080
-  4 threads and 8 connections
+Running 8s test @ http://127.0.0.1:8080
+  8 threads and 200 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    50.62us   60.12us   2.52ms   97.98%
-    Req/Sec    40.59k     4.10k   44.20k    92.68%
-  662179 requests in 4.10s, 46.73MB read
-Requests/sec: 161510.26
-Transfer/sec:     11.40MB
+    Latency     1.12ms  671.82us  13.10ms   76.52%
+    Req/Sec    22.05k     2.80k   29.14k    73.44%
+  1406346 requests in 8.02s, 256.17MB read
+Requests/sec: 175380.14
+Transfer/sec:     31.95MB
 ```
 
 This benchmark does not make sense in real world.
