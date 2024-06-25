@@ -257,7 +257,7 @@ impl AbstractSessionManager for FileSessionManager {
             };
 
             const DELETE_QUERY: &str = r#"
-                DELETE * FROM session WHERE session_id=$1 AND key=$2
+                DELETE FROM session WHERE session_id=$1 AND key=$2
             "#;
 
             let result = sqlx::query(DELETE_QUERY)
@@ -292,7 +292,7 @@ impl AbstractSessionManager for FileSessionManager {
             };
 
             const DELETE_QUERY: &str = r#"
-                DELETE * FROM session WHERE session_id=$1
+                DELETE FROM session WHERE session_id=$1
                 "#;
 
             let result = sqlx::query(DELETE_QUERY)
@@ -313,7 +313,7 @@ impl AbstractSessionManager for FileSessionManager {
 
 #[cfg(test)]
 pub mod test {
-    use std::env;
+    use std::{env, path::PathBuf, str::FromStr};
 
     use uuid::Uuid;
 
@@ -325,6 +325,14 @@ pub mod test {
     async fn test_file_session() {
         // Specifies to use seperate testing database for session
         env::set_var("TEST_SESSION", "true");
+        let db_path = FileSessionManager::get_db_path();
+        assert_eq!(db_path, ".cache/test_session");
+
+        // Removes existing database file if any
+        if PathBuf::from_str(&db_path).unwrap().exists() {
+            let result = tokio::fs::remove_file(&db_path).await;
+            assert_eq!(true, result.is_ok());
+        }
 
         let session_manager_result = FileSessionManager::new().await;
         assert_eq!(true, session_manager_result.is_ok());
@@ -344,12 +352,12 @@ pub mod test {
         let location = session_manager.get(&session_id, "location").await;
         assert_eq!(Some("ktm".to_string()), location);
 
-        let unknown = session_manager.get(&session_id, "name").await;
-        assert_eq!(None, unknown);
-
         // tests removal
         let delete_name_result = session_manager.remove(&session_id, "name").await;
         assert_eq!(true, delete_name_result.is_ok());
+
+        let unknown = session_manager.get(&session_id, "name").await;
+        assert_eq!(None, unknown);
 
         let name = session_manager.get(&session_id, "name").await;
         assert_eq!(None, name);
@@ -361,5 +369,7 @@ pub mod test {
         let location = session_manager.get(&session_id, "location").await;
         assert_eq!(None, location);
 
+        let delete_db_result = tokio::fs::remove_file(db_path).await;
+        assert_eq!(true, delete_db_result.is_ok());
     }
 }
