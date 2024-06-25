@@ -11,7 +11,7 @@ use tokio::sync::Mutex;
 use tokio_rustls::server::TlsStream;
 use tokio_rustls::TlsAcceptor;
 
-use crate::racoon_debug;
+use crate::{racoon_debug, racoon_error};
 
 pub type StreamResult<'a, T> = Box<dyn Future<Output = T> + Sync + Send + Unpin + 'a>;
 pub type Stream = Box<dyn AbstractStream>;
@@ -37,12 +37,23 @@ pub struct TcpStreamWrapper {
 
 impl TcpStreamWrapper {
     pub fn from(tcp_stream: TcpStream, buffer_size: usize) -> std::io::Result<Self> {
-        let std_tcp_stream = tcp_stream.into_std()?.try_clone()?;
+        // May return "Too many open files error" if all file descriptors are used.
+        let std_tcp_stream = tcp_stream.into_std()?;
+
+        let async_tcp_stream_rw = match std_tcp_stream.try_clone() {
+            Ok(std_stream) => TcpStream::from_std(std_stream)?,
+            Err(err) => {
+                racoon_error!("Failed to clone std TcpStream to tokio TcpStream. Try increasing file descriptor limit.");
+                racoon_debug!("Shutting down std stream.");
+                let shutdown_result = std_tcp_stream.shutdown(std::net::Shutdown::Both);
+                racoon_debug!("Shutdown result: {:?}", shutdown_result);
+                return Err(err);
+            }
+        };
+
         // Stream for shutting down later
-        let async_tcp_stream = TcpStream::from_std(std_tcp_stream.try_clone()?)?;
-        // Stream for reader/writer
-        let async_tcp_stream_rw = TcpStream::from_std(std_tcp_stream.try_clone()?)?;
         let (reader, writer) = tokio::io::split(async_tcp_stream_rw);
+        let async_tcp_stream = TcpStream::from_std(std_tcp_stream)?;
 
         Ok(Self {
             stream: Arc::new(Mutex::new(async_tcp_stream)),
