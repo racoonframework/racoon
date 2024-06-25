@@ -51,6 +51,31 @@ async fn main() {
 }
 ```
 
+### File Handling
+
+There are multiple ways to handle files in Racoon. The simple way is to use `request.parse()` method.
+
+```
+use racoon::core::request::Request;
+use racoon::core::response::{HttpResponse, Response};
+use racoon::core::response::status::ResponseStatus;
+use racoon::core::forms::FileField;
+use racoon::core::shortcuts::SingleText;
+
+async fn upload_form(mut request: Request) -> Response {
+    if request.method == "POST" {
+        // Parses request body
+        let (mut form_data, mut files) = request.parse().await;
+        println!("Name: {:?}", form_data.value("name"));
+
+        let file = files.value("file");
+        println!("File: {:?}", file);
+        return HttpResponse::ok().body("Uploaded");
+    }
+
+    HttpResponse::bad_request().body("Failed")
+}
+```
 
 ## WebSocket example
 
