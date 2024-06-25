@@ -1,6 +1,13 @@
 # Racoon
 
-[![build](https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg)](https://github.com/racoonframework/racoon/actions/workflows/build.yml)
+<p align="center" style="text-align: center;">
+    <img src="logo.png" width="300">
+    <br>
+    <a href="https://github.com/racoonframework/racoon/actions/workflows/build.yml">
+        <img src="https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg">
+    </a>
+</p>
+
 
 Racoon is a fast, fully customizable web framework for Rust focusing on simplicity.
 
