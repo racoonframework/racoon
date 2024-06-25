@@ -11,6 +11,9 @@
 
 Racoon is a fast, fully customizable web framework for Rust focusing on simplicity.
 
+To use Racoon, you need minimal Rust version `1.75.0` and `Tokio` runtime.
+
+
 [Learn Racoon](https://racoonframework.github.io)
 
 ## Installation
