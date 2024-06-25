@@ -55,7 +55,7 @@ async fn main() {
 
 There are multiple ways to handle files in Racoon. The simple way is to use `request.parse()` method.
 
-```
+```rust
 use racoon::core::request::Request;
 use racoon::core::response::{HttpResponse, Response};
 use racoon::core::response::status::ResponseStatus;
