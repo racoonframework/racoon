@@ -56,7 +56,7 @@ impl FileSessionManager {
     /// If environment variable `SESSION_FILE_PATH` is specified, it will return the specified path
     /// else default relative file path `.cache/session`.
     ///
-    fn get_db_path() -> String {
+    pub fn get_db_path() -> String {
         let is_test = env::var("TEST_SESSION").unwrap_or("false".to_string());
         if is_test.to_lowercase() == "true" {
             // Returns Sqlite path for testing
