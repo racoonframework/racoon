@@ -418,7 +418,7 @@ impl Server {
                 }
             }
 
-            let tcp_stream= match accept_result {
+            let tcp_stream = match accept_result {
                 Ok((tcp_stream, _)) => tcp_stream,
                 Err(error) => {
                     log::error!("Failed to accept connection. Error: {:?}", error);
@@ -461,7 +461,7 @@ impl Server {
                     match TcpStreamWrapper::from(tcp_stream, buffer_size.clone()) {
                         Ok(tcp_stream_wrapper) => {
                             let stream = Box::new(tcp_stream_wrapper);
-                            
+
                             Self::handle_stream(
                                 stream,
                                 scheme,
@@ -500,17 +500,25 @@ impl Server {
             let router = router.clone();
             let context = context.clone();
 
-            let unix_stream;
-
+            let accept_result;
             tokio::select! {
-                Ok((accepted_stream, _)) = listener.accept() => {
-                        unix_stream = accepted_stream;
-                    }
+                result = listener.accept() => {
+                    accept_result = result;
+                }
+
                 _ = Self::wait_shutdown(shutdown_lock.clone()) => {
-                            racoon_debug!("Shutting down listener");
-                            return Ok(());
-                        }
+                    racoon_debug!("Shutting down listener");
+                    return Ok(());
+                }
             }
+
+            let unix_stream = match accept_result {
+                Ok((unix_stream, _)) => unix_stream,
+                Err(error) => {
+                    log::error!("Failed to accept connection. Error: {:?}", error);
+                    continue;
+                }
+            };
 
             let request_constraints = request_constraints.clone();
             let form_constraints = form_constraints.clone();
