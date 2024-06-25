@@ -310,3 +310,56 @@ impl AbstractSessionManager for FileSessionManager {
         }))
     }
 }
+
+#[cfg(test)]
+pub mod test {
+    use std::env;
+
+    use uuid::Uuid;
+
+    use crate::core::session::AbstractSessionManager;
+
+    use super::FileSessionManager;
+
+    #[tokio::test]
+    async fn test_file_session() {
+        // Specifies to use seperate testing database for session
+        env::set_var("TEST_SESSION", "true");
+
+        let session_manager_result = FileSessionManager::new().await;
+        assert_eq!(true, session_manager_result.is_ok());
+
+        let session_manager = session_manager_result.unwrap();
+        let session_id = Uuid::new_v4().to_string();
+
+        // tests insert
+        let result = session_manager.set(&session_id, "name", "John").await;
+        let result2 = session_manager.set(&session_id, "location", "ktm").await;
+        assert_eq!(true, result.is_ok());
+        assert_eq!(true, result2.is_ok());
+
+        let name = session_manager.get(&session_id, "name").await;
+        assert_eq!(Some("John".to_string()), name);
+
+        let location = session_manager.get(&session_id, "location").await;
+        assert_eq!(Some("ktm".to_string()), location);
+
+        let unknown = session_manager.get(&session_id, "name").await;
+        assert_eq!(None, unknown);
+
+        // tests removal
+        let delete_name_result = session_manager.remove(&session_id, "name").await;
+        assert_eq!(true, delete_name_result.is_ok());
+
+        let name = session_manager.get(&session_id, "name").await;
+        assert_eq!(None, name);
+
+        // tests destory
+        let destroy_result = session_manager.destroy(&session_id).await;
+        assert_eq!(true, destroy_result.is_ok());
+
+        let location = session_manager.get(&session_id, "location").await;
+        assert_eq!(None, location);
+
+    }
+}
