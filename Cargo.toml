@@ -7,7 +7,7 @@ description = "Racoon is fast, fully customizable lightweight web framework for 
 license = "MIT"
 readme = "README.md"
 documentation = "https://racoonframework.github.io"
-repository = "https://github.com/tejmagar/racoon/"
+repository = "https://github.com/racoonframework/racoon/"
 keywords = ["web framework"]
 categories = ["web-programming", "web-programming::http-server", "web-programming::websocket"]
 
