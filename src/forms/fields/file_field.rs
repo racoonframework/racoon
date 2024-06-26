@@ -260,7 +260,10 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
 
 #[cfg(test)]
 pub mod tests {
+    use std::fs;
+
     use async_tempfile::TempFile;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     use crate::core::forms::{Files, FormData};
     use crate::forms::fields::AbstractFields;
@@ -294,20 +297,28 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = TempFile::new().await.unwrap();
+        let mut temp_file = TempFile::new().await.unwrap();
+        let _ = temp_file.write_all(b"Hello World").await;
+
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
-            temp_file: named_temp_file,
+            temp_file,
         };
 
         let mut file_field: FileField<UploadedFile> = FileField::new("file");
         files.insert("file".to_string(), vec![core_file_field]);
         let result = file_field.validate(&mut form_data, &mut files).await;
 
-        let s = file_field.value().await;
-        let s = s.temp_path;
-        assert_eq!(true, s.exists());
+        let path_field = file_field.value().await;
+        let path_buf = path_field.temp_path;
+
+        assert_eq!(true, path_buf.exists());
         assert_eq!(true, result.is_ok());
+
+        let mut file = tokio::fs::File::open(&path_buf).await.unwrap();
+        let mut content = String::new();
+        let _ = file.read_to_string(&mut content).await;
+        assert_eq!("Hello World".to_string(), content);
     }
 
     #[tokio::test]
@@ -315,10 +326,10 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = TempFile::new().await.unwrap();
+        let temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
-            temp_file: named_temp_file,
+            temp_file,
         };
 
         let mut file_field: FileField<Vec<UploadedFile>> = FileField::new("file");
@@ -335,10 +346,10 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = TempFile::new().await.unwrap();
+        let temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
-            temp_file: named_temp_file,
+            temp_file,
         };
 
         let mut file_field: FileField<Option<Vec<UploadedFile>>> = FileField::new("file");
