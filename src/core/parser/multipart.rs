@@ -1,9 +1,8 @@
-use std::io::Write;
 use std::sync::Arc;
 
 use async_tempfile::TempFile;
 use regex::Regex;
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncSeekExt, AsyncWriteExt};
 
 use crate::core::headers;
 use crate::core::headers::{HeaderValue, Headers};
@@ -271,12 +270,22 @@ impl MultipartParser {
 
                     match temp_file.open_rw().await {
                         Ok(mut temp_file) => {
-                            let _ = temp_file.write_all(to_copy);
+                            match temp_file.write_all(to_copy).await {
+                                Ok(()) => {}
+                                Err(error) => {
+                                    return Err(FormFieldError::Others(
+                                        Some(field_name.to_string()),
+                                        format!("Failed to write file. Error: {}", error),
+                                    ));
+                                }
+                            }
+
+                            let _ = temp_file.seek(std::io::SeekFrom::Start(0));
                         }
                         Err(error) => {
                             return Err(FormFieldError::Others(
                                 Some(field_name.to_string()),
-                                format!("Failed to open file. {}", error),
+                                format!("Failed to open file. Error: {}", error),
                             ));
                         }
                     }
@@ -307,12 +316,20 @@ impl MultipartParser {
 
                 match temp_file.open_rw().await {
                     Ok(mut temp_file) => {
-                        let _ = temp_file.write_all(&scan_buffer[..to_copy_position]);
+                        match temp_file.write_all(&scan_buffer[..to_copy_position]).await {
+                            Ok(()) => {}
+                            Err(error) => {
+                                return Err(FormFieldError::Others(
+                                    Some(field_name.to_string()),
+                                    format!("Failed to write file. Error: {}", error),
+                                ));
+                            }
+                        }
                     }
                     Err(error) => {
                         return Err(FormFieldError::Others(
                             Some(field_name.to_string()),
-                            format!("Failed to open file. {}", error),
+                            format!("Failed to open file. Error: {}", error),
                         ));
                     }
                 }
