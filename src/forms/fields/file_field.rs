@@ -30,7 +30,7 @@ impl UploadedFile {
         }
     }
 
-    pub fn named_temp_file(&self) -> &TempFile {
+    pub fn temp_file(&self) -> &TempFile {
         &self.temp_file
     }
 }
