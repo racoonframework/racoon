@@ -20,8 +20,9 @@ To use Racoon, you need minimal Rust version `1.75.0` and `Tokio` runtime.
 
 You will need `tokio` runtime to run Racoon. Run `cargo add tokio` to install tokio crate.
 
-```shell
-cargo add racoon
+```toml
+[dependencies]
+racoon = "0.1.2"
 ```
 
 ## Basic Usage
