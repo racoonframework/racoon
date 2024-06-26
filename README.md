@@ -6,6 +6,7 @@
     <a href="https://github.com/racoonframework/racoon/actions/workflows/build.yml">
         <img src="https://github.com/racoonframework/racoon/actions/workflows/build.yml/badge.svg" alt="Racoon">
     </a>
+    &nbsp;
     <a href="https://crates.io/crates/racoon">
         <img src="https://img.shields.io/crates/v/racoon.svg" alt="Racoon">
     </a>
