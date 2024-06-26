@@ -651,14 +651,17 @@ impl Server {
             // Shutdowns next request on the current connection, if the request body is not read
             // completely.
 
-            // Disable extra payload in GET request
+            // Disables keep-alive if extra payload or body in GET request
             if request_method == "GET" {
-                if stream.restored_len().await > 0 {
-                    is_keep_alive = false;
-                }
+                let content_length = request_result.headers.value("content-length");
+                is_keep_alive = !content_length.is_some() || stream.restored_len().await == 0;
             }
 
             let body_read = Arc::new(AtomicBool::from(true));
+            if request_result.headers.value("content-length").is_some() {
+                body_read.store(false, Ordering::Relaxed);
+            }
+
             let extra_headers = Arc::new(Mutex::new(Headers::new()));
 
             let request = Request::from(
@@ -693,24 +696,26 @@ impl Server {
 
             // Serves bytes to client
             if response.serve_default() {
-                if !is_keep_alive {
+                if response.should_close() || !is_keep_alive {
                     let headers = response.get_headers();
                     headers.set("Connection", "close");
                 }
 
                 let response_bytes = response::response_to_bytes(&mut response);
-                let write_result = stream.write_chunk(response_bytes.as_slice()).await;
-                if write_result.is_err() {
-                    break;
+                match stream.write_chunk(response_bytes.as_slice()).await {
+                    Ok(()) => {}
+                    Err(error) => {
+                        racoon_debug!("Failed to write response: Error: {}", error);
+                        break;
+                    }
                 }
             }
 
             // Close connection if response explicitly specifies to close or HTTP client does not support
             // keep alive connection.
             if response.should_close() || !is_keep_alive {
-                {
-                    let _ = stream.shutdown().await;
-                }
+                racoon_debug!("Closing connection.");
+                let _ = stream.shutdown().await;
                 break;
             }
         }
