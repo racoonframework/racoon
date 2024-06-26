@@ -1,6 +1,7 @@
 /target
 /ignored
-src/main.rs
+/src/main.rs
+/templates
 .idea/
 .cache/
 .env
