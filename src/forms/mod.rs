@@ -4,6 +4,8 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::vec;
 
+use serde::{Deserialize, Serialize};
+
 use crate::core::forms::FormFieldError;
 use crate::core::request::Request;
 
@@ -11,6 +13,7 @@ use crate::forms::fields::AbstractFields;
 
 pub type FormFields = Vec<Box<dyn AbstractFields + Sync + Send>>;
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ValidationError {
     pub field_errors: HashMap<String, Vec<String>>,
     pub others: Vec<String>,
