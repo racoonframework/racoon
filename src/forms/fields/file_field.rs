@@ -260,8 +260,6 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::fs;
-
     use async_tempfile::TempFile;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
