@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 
-use tempfile::NamedTempFile;
+use async_tempfile::TempFile;
 
 #[derive(Debug)]
 pub struct FileField {
     pub name: String,
-    pub temp_file: NamedTempFile,
+    pub temp_file: TempFile,
 }
 
 pub type Files = HashMap<String, Vec<FileField>>;

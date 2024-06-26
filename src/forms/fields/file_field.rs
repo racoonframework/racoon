@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use tempfile::NamedTempFile;
+use async_tempfile::TempFile;
 use tokio::sync::Mutex;
 
 use crate::core::forms::{Files, FormData};
@@ -14,24 +14,24 @@ use crate::forms::fields::FieldResult;
 
 pub struct UploadedFile {
     pub filename: String,
-    named_temp_file: NamedTempFile,
+    temp_file: TempFile,
     pub temp_path: PathBuf,
 }
 
 impl UploadedFile {
     pub fn from_core_file_field(file_field: crate::core::forms::FileField) -> Self {
-        let named_temp_file = file_field.temp_file;
-        let temp_path = named_temp_file.path().to_path_buf();
+        let temp_file = file_field.temp_file;
+        let temp_path = temp_file.file_path().clone();
 
         Self {
             filename: file_field.name,
-            named_temp_file,
+            temp_file,
             temp_path,
         }
     }
 
-    pub fn named_temp_file(&self) -> &NamedTempFile {
-        &self.named_temp_file
+    pub fn named_temp_file(&self) -> &TempFile {
+        &self.temp_file
     }
 }
 
@@ -260,7 +260,7 @@ impl<T: ToOptionT + Sync + Send + 'static> AbstractFields for FileField<T> {
 
 #[cfg(test)]
 pub mod tests {
-    use tempfile::NamedTempFile;
+    use async_tempfile::TempFile;
 
     use crate::core::forms::{Files, FormData};
     use crate::forms::fields::AbstractFields;
@@ -294,7 +294,7 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = NamedTempFile::new().unwrap();
+        let named_temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
             temp_file: named_temp_file,
@@ -315,7 +315,7 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = NamedTempFile::new().unwrap();
+        let named_temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
             temp_file: named_temp_file,
@@ -335,7 +335,7 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = NamedTempFile::new().unwrap();
+        let named_temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
             temp_file: named_temp_file,
@@ -366,10 +366,10 @@ pub mod tests {
         let mut form_data = FormData::new();
         let mut files = Files::new();
 
-        let named_temp_file = NamedTempFile::new().unwrap();
+        let temp_file = TempFile::new().await.unwrap();
         let core_file_field = crate::core::forms::FileField {
             name: "file.txt".to_string(),
-            temp_file: named_temp_file,
+            temp_file,
         };
 
         let mut file_field: FileField<UploadedFile> =

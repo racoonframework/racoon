@@ -1,14 +1,14 @@
 use std::io::Write;
 use std::sync::Arc;
 
+use async_tempfile::TempFile;
 use regex::Regex;
+use tokio::io::AsyncWriteExt;
 
 use crate::core::headers;
 use crate::core::headers::{HeaderValue, Headers};
 
 use crate::core::stream::Stream;
-
-use tempfile::NamedTempFile;
 
 use crate::core::forms::{FileField, Files, FormConstraints, FormData, FormFieldError};
 
@@ -18,7 +18,7 @@ pub struct FormPart {
     pub value: Option<String>,
     pub filename: Option<String>,
     pub content_type: Option<String>,
-    pub file: Option<NamedTempFile>,
+    pub file: Option<TempFile>,
 }
 
 pub struct MultipartParser {
@@ -238,7 +238,7 @@ impl MultipartParser {
         let value_terminator = format!("\r\n--{}", self.boundary);
         let value_terminator_bytes = value_terminator.as_bytes();
 
-        let mut temp_file = match NamedTempFile::new() {
+        let temp_file = match TempFile::new().await {
             Ok(file) => file,
             Err(error) => {
                 return Err(FormFieldError::Others(None, error.to_string()));
@@ -268,12 +268,18 @@ impl MultipartParser {
                 {
                     let to_copy_position = matched_position;
                     let to_copy = &scan_buffer[..to_copy_position];
-                    match temp_file.write_all(to_copy) {
-                        Ok(()) => {}
-                        Err(error) => {
-                            return Err(FormFieldError::Others(None, error.to_string()));
+
+                    match temp_file.open_rw().await {
+                        Ok(mut temp_file) => {
+                            let _ = temp_file.write_all(to_copy);
                         }
-                    };
+                        Err(error) => {
+                            return Err(FormFieldError::Others(
+                                Some(field_name.to_string()),
+                                format!("Failed to open file. {}", error),
+                            ));
+                        }
+                    }
 
                     scan_buffer =
                         (&scan_buffer[to_copy_position + value_terminator_bytes.len()..]).to_vec();
@@ -298,12 +304,19 @@ impl MultipartParser {
             if scan_buffer.len() > value_terminator_bytes.len() {
                 // This much amount of bytes can be copied safely from the file buffer
                 let to_copy_position = scan_buffer.len() - value_terminator_bytes.len();
-                match temp_file.write_all(&scan_buffer[..to_copy_position]) {
-                    Ok(()) => {}
-                    Err(error) => {
-                        return Err(FormFieldError::Others(None, error.to_string()));
+
+                match temp_file.open_rw().await {
+                    Ok(mut temp_file) => {
+                        let _ = temp_file.write_all(&scan_buffer[..to_copy_position]);
                     }
-                };
+                    Err(error) => {
+                        return Err(FormFieldError::Others(
+                            Some(field_name.to_string()),
+                            format!("Failed to open file. {}", error),
+                        ));
+                    }
+                }
+
                 scan_buffer.drain(..to_copy_position);
             }
 
