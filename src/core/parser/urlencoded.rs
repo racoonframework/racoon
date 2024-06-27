@@ -29,6 +29,7 @@ impl UrlEncodedParser {
                     return Err(FormFieldError::Others(
                         None,
                         "Invalid content length header.".to_owned(),
+                        false
                     ));
                 }
             }
@@ -36,6 +37,7 @@ impl UrlEncodedParser {
             return Err(FormFieldError::Others(
                 None,
                 "Content-Length header is missing.".to_owned(),
+                false
             ));
         }
 
@@ -70,7 +72,7 @@ impl UrlEncodedParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(None, error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string(), true));
                 }
             };
             buffer.extend(chunk);
@@ -149,7 +151,7 @@ pub mod test {
 
         let form_field_error = url_encode_parser.unwrap_err();
         match form_field_error {
-            FormFieldError::Others(_, _) => {
+            FormFieldError::Others(_, _, _) => {
             }
             _ => {
                 assert!(true)

@@ -10,6 +10,7 @@ use crate::core::forms::FormFieldError;
 use crate::core::request::Request;
 
 use crate::forms::fields::AbstractFields;
+use crate::racoon_error;
 
 pub type FormFields = Vec<Box<dyn AbstractFields + Sync + Send>>;
 
@@ -17,6 +18,8 @@ pub type FormFields = Vec<Box<dyn AbstractFields + Sync + Send>>;
 pub struct ValidationError {
     pub field_errors: HashMap<String, Vec<String>>,
     pub others: Vec<String>,
+    #[serde(skip_serializing)]
+    pub critical_errors: Vec<String>,
 }
 
 pub trait FormValidator: Sized + Send {
@@ -35,6 +38,7 @@ pub trait FormValidator: Sized + Send {
         Box::new(Box::pin(async move {
             let mut field_errors: HashMap<String, Vec<String>> = HashMap::new();
             let mut other_errors: Vec<String> = vec![];
+            let mut critical_errors: Vec<String> = vec![];
 
             let (mut form_data, mut files) =
                 match request.parse_body(request.form_constraints.clone()).await {
@@ -69,11 +73,18 @@ pub trait FormValidator: Sized + Send {
                                 }
                             }
 
-                            FormFieldError::Others(field_name, error) => {
-                                if let Some(field_name) = field_name {
-                                    field_errors.insert(field_name, vec![error]);
+                            FormFieldError::Others(field_name, error, is_critical) => {
+                                if !is_critical {
+                                    // Safe to expose error to client
+                                    if let Some(field_name) = field_name {
+                                        field_errors.insert(field_name, vec![error]);
+                                    } else {
+                                        other_errors.push(error);
+                                    }
                                 } else {
-                                    other_errors.push(error);
+                                    // May contains system errors. Not safe to expose to client,
+                                    racoon_error!("Critical error: {}", error);
+                                    critical_errors.push(format!("Field: {}", error));
                                 }
                             }
                         }
@@ -81,6 +92,7 @@ pub trait FormValidator: Sized + Send {
                         let validation_error = ValidationError {
                             field_errors,
                             others: other_errors,
+                            critical_errors,
                         };
                         return Err(validation_error);
                     }
@@ -110,6 +122,7 @@ pub trait FormValidator: Sized + Send {
                 let validation_error = ValidationError {
                     field_errors,
                     others: vec![],
+                    critical_errors,
                 };
                 return Err(validation_error);
             }

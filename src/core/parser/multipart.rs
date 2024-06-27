@@ -60,7 +60,7 @@ impl MultipartParser {
         let mut parser = match MultipartParser::from(stream, headers, form_constraints) {
             Ok(parser) => parser,
             Err(error) => {
-                return Err(FormFieldError::Others(None, error.to_string()));
+                return Err(FormFieldError::Others(None, error.to_string(), true));
             }
         };
 
@@ -78,6 +78,7 @@ impl MultipartParser {
                 return Err(FormFieldError::Others(
                     None,
                     "Field name is missing.".to_owned(),
+                    true
                 ));
             }
 
@@ -89,6 +90,7 @@ impl MultipartParser {
                     return Err(FormFieldError::Others(
                         Some(field_name.clone()),
                         "Parsing error: file is missing.".to_owned(),
+                        true
                     ));
                 }
 
@@ -122,6 +124,7 @@ impl MultipartParser {
             return Err(FormFieldError::Others(
                 None,
                 "Form part body not read.".to_string(),
+                true,
             ));
         }
 
@@ -146,7 +149,7 @@ impl MultipartParser {
                 let chunk = match stream.read_chunk().await {
                     Ok(bytes) => bytes,
                     Err(error) => {
-                        return Err(FormFieldError::Others(None, error.to_string()));
+                        return Err(FormFieldError::Others(None, error.to_string(), true));
                     }
                 };
                 bytes_read += chunk.len();
@@ -157,6 +160,7 @@ impl MultipartParser {
                 return Err(FormFieldError::Others(
                     None,
                     format!("Boundary does not start with {}", scan_boundary),
+                    true
                 ));
             }
 
@@ -190,7 +194,7 @@ impl MultipartParser {
                 let chunk = match stream.read_chunk().await {
                     Ok(bytes) => bytes,
                     Err(error) => {
-                        return Err(FormFieldError::Others(None, error.to_string()));
+                        return Err(FormFieldError::Others(None, error.to_string(), true));
                     }
                 };
                 bytes_read += chunk.len();
@@ -207,6 +211,7 @@ impl MultipartParser {
             return Err(FormFieldError::Others(
                 None,
                 "Form part header is not read.".to_owned(),
+                true,
             ));
         }
 
@@ -226,6 +231,7 @@ impl MultipartParser {
             return Err(FormFieldError::Others(
                 None,
                 "Field name is missing".to_owned(),
+                false,
             ));
         }
 
@@ -240,7 +246,7 @@ impl MultipartParser {
         let temp_file = match TempFile::new().await {
             Ok(file) => file,
             Err(error) => {
-                return Err(FormFieldError::Others(None, error.to_string()));
+                return Err(FormFieldError::Others(None, error.to_string(), true));
             }
         };
         let mut scan_buffer = vec![];
@@ -276,6 +282,7 @@ impl MultipartParser {
                                     return Err(FormFieldError::Others(
                                         Some(field_name.to_string()),
                                         format!("Failed to write file. Error: {}", error),
+                                        true,
                                     ));
                                 }
                             }
@@ -286,6 +293,7 @@ impl MultipartParser {
                             return Err(FormFieldError::Others(
                                 Some(field_name.to_string()),
                                 format!("Failed to open file. Error: {}", error),
+                                true,
                             ));
                         }
                     }
@@ -322,6 +330,7 @@ impl MultipartParser {
                                 return Err(FormFieldError::Others(
                                     Some(field_name.to_string()),
                                     format!("Failed to write file. Error: {}", error),
+                                    true,
                                 ));
                             }
                         }
@@ -330,6 +339,7 @@ impl MultipartParser {
                         return Err(FormFieldError::Others(
                             Some(field_name.to_string()),
                             format!("Failed to open file. Error: {}", error),
+                            true,
                         ));
                     }
                 }
@@ -341,7 +351,7 @@ impl MultipartParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(None, error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string(), true));
                 }
             };
             bytes_read += chunk.len();
@@ -357,6 +367,7 @@ impl MultipartParser {
             return Err(FormFieldError::Others(
                 None,
                 "Field name is missing.".to_owned(),
+                false,
             ));
         }
 
@@ -416,7 +427,7 @@ impl MultipartParser {
             let chunk = match self.stream.read_chunk().await {
                 Ok(bytes) => bytes,
                 Err(error) => {
-                    return Err(FormFieldError::Others(None, error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string(), true));
                 }
             };
             bytes_read += chunk.len();
@@ -457,7 +468,7 @@ pub fn parse_form_part_header(header_bytes: &[u8]) -> Result<FormPart, FormField
             match parse_form_part_header_line(header_line, &mut form_part) {
                 Ok(()) => {}
                 Err(error) => {
-                    return Err(FormFieldError::Others(None, error.to_string()));
+                    return Err(FormFieldError::Others(None, error.to_string(), true));
                 }
             };
             last_scanned_position += relative_position + HEADER_LINE_TERMINATOR.len();

@@ -130,5 +130,7 @@ pub enum FormFieldError {
     MaxHeaderSizeExceed,
     MaxFileSizeExceed(String),
     MaxValueSizeExceed(String),
-    Others(Option<String>, String),
+    /// (field_name, error, is_criticial)
+    /// If error is critical, don't expose to client.
+    Others(Option<String>, String, bool),
 }
