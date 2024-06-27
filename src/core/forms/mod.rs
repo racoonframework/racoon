@@ -126,9 +126,13 @@ impl FormConstraints {
 
 #[derive(Debug)]
 pub enum FormFieldError {
+    /// Max form part body size exceeded.
     MaxBodySizeExceed,
+    /// Maximum form part header size exceeded.
     MaxHeaderSizeExceed,
+    /// Maximum file size exceeded.
     MaxFileSizeExceed(String),
+    /// Maximum length of text length exceeded.
     MaxValueSizeExceed(String),
     /// (field_name, error, is_criticial)
     /// If error is critical, don't expose to client.
