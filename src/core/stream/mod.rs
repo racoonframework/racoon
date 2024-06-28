@@ -124,10 +124,9 @@ impl AbstractStream for TcpStreamWrapper {
             // Reading from stream wrapper is skipped because there may not be any bytes to read.
             let mut restored_payload = restored_payload_ref.lock().await;
 
-            if let Some(payload) = restored_payload.as_ref() {
-                let buffer = payload.to_owned();
-                *restored_payload = None;
-                return Ok(buffer);
+            if let Some(payload) = restored_payload.take() {
+                // Leaves None
+                return Ok(payload);
             }
 
             let mut buffer = vec![0u8; buffer_size];
@@ -142,7 +141,7 @@ impl AbstractStream for TcpStreamWrapper {
                         ));
                     }
 
-                    let chunk = buffer.drain(0..read_size).collect();
+                    let chunk: Vec<u8> = buffer.drain(0..read_size).collect();
                     Ok(chunk)
                 }
                 Err(error) => Err(std::io::Error::other(error)),
