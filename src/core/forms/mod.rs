@@ -6,11 +6,22 @@ use async_tempfile::TempFile;
 pub struct FileField {
     pub name: String,
     temp_file: TempFile,
+    pub temp_path: PathBuf,
 }
 
 impl FileField {
-    pub fn temp_path(&self) -> &PathBuf {
-        self.temp_file.file_path()
+    pub fn from<S: AsRef<str>>(name: S, temp_file: TempFile) -> Self {
+        let temp_path = temp_file.file_path().clone();
+
+        Self {
+            name: name.as_ref().to_string(),
+            temp_file,
+            temp_path,
+        }
+    }
+
+    pub fn temp_file(&self) -> &TempFile {
+        &self.temp_file
     }
 }
 
