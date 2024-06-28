@@ -139,7 +139,7 @@ wrk -c100 -d8s -t4 http://127.0.0.1:8080
 Result on AMD Ryzen 5 7520U with Radeon Graphics.
 
 ```text
-Running 8s test @ http://127.0.0.1:1234/
+Running 8s test @ http://127.0.0.1:8080/
   4 threads and 100 connections
   Thread Stats   Avg      Stdev     Max   +/- Stdev
     Latency   374.62us  219.91us   3.91ms   76.47%
