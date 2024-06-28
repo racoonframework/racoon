@@ -76,8 +76,13 @@ impl Session {
     /// with new value if the `sessionid` header is not present.
     ///
     pub async fn session_id(&self) -> Option<String> {
-        // &self.session_id_ref
-        todo!()
+        let session_id_lock = self.session_id.lock().await;
+
+        if let Some(session_id) = &*session_id_lock {
+            return Some(session_id.to_owned());
+        }
+
+        None
     }
 
     ///
