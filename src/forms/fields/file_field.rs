@@ -14,24 +14,36 @@ use crate::forms::fields::FieldResult;
 
 pub struct UploadedFile {
     pub filename: String,
-    temp_file: TempFile,
+    core_file_field: crate::core::forms::FileField,
     pub temp_path: PathBuf,
 }
 
 impl UploadedFile {
-    pub fn from_core_file_field(file_field: crate::core::forms::FileField) -> Self {
-        let temp_file = file_field.temp_file;
-        let temp_path = temp_file.file_path().clone();
+    pub fn from_core_file_field(core_file_field: crate::core::forms::FileField) -> Self {
+        let temp_path = core_file_field.temp_path.clone();
+        let filename = core_file_field.name.clone();
 
         Self {
-            filename: file_field.name,
-            temp_file,
+            filename,
+            core_file_field,
             temp_path,
         }
     }
 
-    pub fn temp_file(&self) -> &TempFile {
-        &self.temp_file
+    pub fn core_file_field(&mut self) -> &crate::core::forms::FileField {
+        &mut self.core_file_field
+    }
+
+    pub fn from_temp_file<S: AsRef<str>>(filename: S, temp_file: TempFile) -> Self {
+        let filename = filename.as_ref().to_string();
+        let core_file_field = crate::core::forms::FileField::from(&filename, temp_file);
+        let temp_path = core_file_field.temp_path.clone();
+
+        Self {
+            filename,
+            core_file_field,
+            temp_path,
+        }
     }
 }
 
@@ -298,10 +310,10 @@ pub mod tests {
         let mut temp_file = TempFile::new().await.unwrap();
         let _ = temp_file.write_all(b"Hello World").await;
 
-        let core_file_field = crate::core::forms::FileField {
-            name: "file.txt".to_string(),
+        let core_file_field = crate::core::forms::FileField::from(
+            "file.txt".to_string(),
             temp_file,
-        };
+        );
 
         let mut file_field: FileField<UploadedFile> = FileField::new("file");
         files.insert("file".to_string(), vec![core_file_field]);
@@ -325,10 +337,7 @@ pub mod tests {
         let mut files = Files::new();
 
         let temp_file = TempFile::new().await.unwrap();
-        let core_file_field = crate::core::forms::FileField {
-            name: "file.txt".to_string(),
-            temp_file,
-        };
+        let core_file_field = crate::core::forms::FileField::from("file.txt", temp_file);
 
         let mut file_field: FileField<Vec<UploadedFile>> = FileField::new("file");
         files.insert("file".to_string(), vec![core_file_field]);
@@ -345,10 +354,10 @@ pub mod tests {
         let mut files = Files::new();
 
         let temp_file = TempFile::new().await.unwrap();
-        let core_file_field = crate::core::forms::FileField {
-            name: "file.txt".to_string(),
+        let core_file_field = crate::core::forms::FileField::from(
+            "file.txt".to_string(),
             temp_file,
-        };
+        );
 
         let mut file_field: FileField<Option<Vec<UploadedFile>>> = FileField::new("file");
         files.insert("file".to_string(), vec![core_file_field]);
@@ -376,10 +385,10 @@ pub mod tests {
         let mut files = Files::new();
 
         let temp_file = TempFile::new().await.unwrap();
-        let core_file_field = crate::core::forms::FileField {
-            name: "file.txt".to_string(),
+        let core_file_field = crate::core::forms::FileField::from(
+            "file.txt".to_string(),
             temp_file,
-        };
+        );
 
         let mut file_field: FileField<UploadedFile> =
             FileField::new("file").post_validate(|file| {
