@@ -94,10 +94,7 @@ impl MultipartParser {
                     ));
                 }
 
-                let temp_file = FileField {
-                    name: filename,
-                    temp_file: named_temp_file,
-                };
+                let temp_file = FileField::from(filename, named_temp_file);
                 if let Some(files) = files.get_mut(&field_name) {
                     files.push(temp_file);
                 } else {
@@ -533,8 +530,6 @@ pub fn parse_content_disposition_value(
 pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
-    use tokio::io::AsyncReadExt;
-
     use crate::core::forms::{FileFieldShortcut, FormConstraints};
     use crate::core::headers::{HeaderValue, Headers};
     use crate::core::shortcuts::SingleText;
@@ -563,20 +558,18 @@ pub mod tests {
         let parser = MultipartParser::parse(Arc::new(stream), form_constraints, &headers).await;
         assert_eq!(true, parser.is_ok());
 
-        let (form_data, mut files) = parser.unwrap();
+        let (form_data, files) = parser.unwrap();
         assert_eq!(Some(&"John".to_string()), form_data.value("name"));
         assert_eq!(Some(&"ktm".to_string()), form_data.value("location"));
 
-        let file = files.value("file");
-        assert_eq!(true, file.is_some());
+        let file_field = files.value("file");
+        assert_eq!(true, file_field.is_some());
 
-        let mut file = file.unwrap();
+        let file = file_field.unwrap();
+        let file_path = file.temp_path();
         assert_eq!("example.txt".to_string(), file.name);
 
-        let mut file_content = String::new();
-        file.temp_file.read_to_string(&mut file_content).await;
-        println!("{}", file_content);
-
+        let file_content = tokio::fs::read_to_string(&file_path).await.unwrap();
         assert_eq!("Hello World".to_string(), file_content);
     }
 }
