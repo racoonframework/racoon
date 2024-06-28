@@ -654,7 +654,9 @@ impl Server {
             // Disables keep-alive if extra payload or body in GET request
             if request_method == "GET" {
                 let content_length = request_result.headers.value("content-length");
-                is_keep_alive = !content_length.is_some() || stream.restored_len().await == 0;
+                if content_length.is_some() || stream.restored_len().await != 0 {
+                    is_keep_alive = false;
+                };
             }
 
             let body_read = Arc::new(AtomicBool::from(true));
