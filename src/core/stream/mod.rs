@@ -20,7 +20,7 @@ pub type Stream = Box<dyn AbstractStream>;
 pub trait AbstractStream: Sync + Send {
     fn buffer_size(&self) -> StreamResult<usize>;
     fn peer_addr(&self) -> StreamResult<Option<String>>;
-    fn restore_payload(&self, bytes: &[u8]) -> StreamResult<std::io::Result<()>>;
+    fn restore_payload<'a>(&'a self, bytes: &[u8]) -> StreamResult<std::io::Result<()>>;
     fn restored_len(&self) -> StreamResult<usize>;
     fn read_chunk(&self) -> StreamResult<std::io::Result<Vec<u8>>>;
     fn write_chunk<'a>(&'a self, bytes: &'a [u8]) -> StreamResult<std::io::Result<()>>;
@@ -88,13 +88,13 @@ impl AbstractStream for TcpStreamWrapper {
         }))
     }
 
-    fn restore_payload(&self, bytes: &[u8]) -> StreamResult<std::io::Result<()>> {
+    fn restore_payload<'a>(&'a self, bytes: &[u8]) -> StreamResult<std::io::Result<()>> {
         let restored_payload_ref = self.restored_payload.clone();
         let bytes = bytes.to_vec();
 
         Box::new(Box::pin(async move {
             let mut restored_payload = restored_payload_ref.lock().await;
-            *restored_payload = Some(bytes.to_vec());
+            *restored_payload = Some(bytes);
             Ok(())
         }))
     }
@@ -142,8 +142,8 @@ impl AbstractStream for TcpStreamWrapper {
                         ));
                     }
 
-                    let chunk = &buffer[0..read_size];
-                    Ok(chunk.to_vec())
+                    let chunk = buffer.drain(0..read_size).collect();
+                    Ok(chunk)
                 }
                 Err(error) => Err(std::io::Error::other(error)),
             };
