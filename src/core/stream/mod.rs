@@ -23,7 +23,7 @@ pub trait AbstractStream: Sync + Send {
     fn restore_payload(&self, bytes: &[u8]) -> StreamResult<std::io::Result<()>>;
     fn restored_len(&self) -> StreamResult<usize>;
     fn read_chunk(&self) -> StreamResult<std::io::Result<Vec<u8>>>;
-    fn write_chunk(&self, bytes: &[u8]) -> StreamResult<std::io::Result<()>>;
+    fn write_chunk<'a>(&'a self, bytes: &'a [u8]) -> StreamResult<std::io::Result<()>>;
     fn shutdown(&self) -> StreamResult<std::io::Result<()>>;
 }
 
@@ -150,9 +150,8 @@ impl AbstractStream for TcpStreamWrapper {
         }))
     }
 
-    fn write_chunk(&self, data: &[u8]) -> StreamResult<std::io::Result<()>> {
+    fn write_chunk<'a>(&'a self, data: &'a [u8]) -> StreamResult<std::io::Result<()>> {
         let writer_ref = self.writer.clone();
-        let data = data.to_vec().clone();
 
         Box::new(Box::pin(async move {
             let mut writer = writer_ref.lock().await;
