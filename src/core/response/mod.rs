@@ -67,7 +67,7 @@ impl HttpResponse {
     }
 
     pub fn location(mut self, url: &str) -> Box<Self> {
-        self.get_headers().set("Location", url.as_bytes());
+        self.get_headers().set("Location", url);
         Box::new(self)
     }
 
@@ -75,13 +75,13 @@ impl HttpResponse {
         let data = data.as_ref();
 
         self.headers
-            .set("Content-Length", data.len().to_string().as_bytes());
+            .set("Content-Length", data.len().to_string());
 
         if self.headers.value("Connection").is_none() {
             if self.keep_alive {
-                self.headers.set("Connection", "keep-alive".as_bytes());
+                self.headers.set("Connection", "keep-alive");
             } else {
-                self.headers.set("Connection", "close".as_bytes());
+                self.headers.set("Connection", "close");
             }
         }
 
@@ -163,11 +163,11 @@ impl JsonResponse {
             if self.http_response.keep_alive {
                 self.http_response
                     .headers
-                    .set("Connection", "keep-alive".as_bytes());
+                    .set("Connection", "keep-alive");
             } else {
                 self.http_response
                     .headers
-                    .set("Connection", "close".as_bytes());
+                    .set("Connection", "close");
             }
         }
 
@@ -223,7 +223,7 @@ impl ResponseStatus for JsonResponse {
     fn with_status(status_code: u32, status_text: &str) -> Self {
         let mut http_response = HttpResponse::with_status(status_code, status_text);
         let headers = http_response.get_headers();
-        headers.set("Content-Type", b"application/json");
+        headers.set("Content-Type", "application/json");
 
         Self { http_response }
     }
