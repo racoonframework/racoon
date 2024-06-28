@@ -287,6 +287,8 @@ impl MultipartParser {
                         }
                     }
 
+                    let _ = temp_file.flush().await;
+
                     scan_buffer =
                         (&scan_buffer[to_copy_position + value_terminator_bytes.len()..]).to_vec();
                     return if &scan_buffer[..FORM_PART_END.len()] == FORM_PART_END {
