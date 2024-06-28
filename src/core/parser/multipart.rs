@@ -78,7 +78,7 @@ impl MultipartParser {
                 return Err(FormFieldError::Others(
                     None,
                     "Field name is missing.".to_owned(),
-                    true
+                    true,
                 ));
             }
 
@@ -90,7 +90,7 @@ impl MultipartParser {
                     return Err(FormFieldError::Others(
                         Some(field_name.clone()),
                         "Parsing error: file is missing.".to_owned(),
-                        true
+                        true,
                     ));
                 }
 
@@ -160,7 +160,7 @@ impl MultipartParser {
                 return Err(FormFieldError::Others(
                     None,
                     format!("Boundary does not start with {}", scan_boundary),
-                    true
+                    true,
                 ));
             }
 
@@ -243,8 +243,13 @@ impl MultipartParser {
         let value_terminator = format!("\r\n--{}", self.boundary);
         let value_terminator_bytes = value_terminator.as_bytes();
 
-        let temp_file = match TempFile::new().await {
-            Ok(file) => file,
+        let mut temp_file = match TempFile::new().await {
+            Ok(file) => match file.open_rw().await {
+                Ok(result) => result,
+                Err(error) => {
+                    return Err(FormFieldError::Others(None, error.to_string(), true));
+                }
+            },
             Err(error) => {
                 return Err(FormFieldError::Others(None, error.to_string(), true));
             }
@@ -274,25 +279,12 @@ impl MultipartParser {
                     let to_copy_position = matched_position;
                     let to_copy = &scan_buffer[..to_copy_position];
 
-                    match temp_file.open_rw().await {
-                        Ok(mut temp_file) => {
-                            match temp_file.write_all(to_copy).await {
-                                Ok(()) => {}
-                                Err(error) => {
-                                    return Err(FormFieldError::Others(
-                                        Some(field_name.to_string()),
-                                        format!("Failed to write file. Error: {}", error),
-                                        true,
-                                    ));
-                                }
-                            }
-
-                            let _ = temp_file.seek(std::io::SeekFrom::Start(0));
-                        }
+                    match temp_file.write_all(to_copy).await {
+                        Ok(()) => {}
                         Err(error) => {
                             return Err(FormFieldError::Others(
                                 Some(field_name.to_string()),
-                                format!("Failed to open file. Error: {}", error),
+                                format!("Failed to write file. Error: {}", error),
                                 true,
                             ));
                         }
@@ -322,23 +314,12 @@ impl MultipartParser {
                 // This much amount of bytes can be copied safely from the file buffer
                 let to_copy_position = scan_buffer.len() - value_terminator_bytes.len();
 
-                match temp_file.open_rw().await {
-                    Ok(mut temp_file) => {
-                        match temp_file.write_all(&scan_buffer[..to_copy_position]).await {
-                            Ok(()) => {}
-                            Err(error) => {
-                                return Err(FormFieldError::Others(
-                                    Some(field_name.to_string()),
-                                    format!("Failed to write file. Error: {}", error),
-                                    true,
-                                ));
-                            }
-                        }
-                    }
+                match temp_file.write_all(&scan_buffer[..to_copy_position]).await {
+                    Ok(()) => {}
                     Err(error) => {
                         return Err(FormFieldError::Others(
                             Some(field_name.to_string()),
-                            format!("Failed to open file. Error: {}", error),
+                            format!("Failed to write file. Error: {}", error),
                             true,
                         ));
                     }
@@ -552,6 +533,8 @@ pub fn parse_content_disposition_value(
 pub mod tests {
     use std::{collections::HashMap, sync::Arc};
 
+    use tokio::io::AsyncReadExt;
+
     use crate::core::forms::{FileFieldShortcut, FormConstraints};
     use crate::core::headers::{HeaderValue, Headers};
     use crate::core::shortcuts::SingleText;
@@ -580,13 +563,20 @@ pub mod tests {
         let parser = MultipartParser::parse(Arc::new(stream), form_constraints, &headers).await;
         assert_eq!(true, parser.is_ok());
 
-        let (form_data, files) = parser.unwrap();
+        let (form_data, mut files) = parser.unwrap();
         assert_eq!(Some(&"John".to_string()), form_data.value("name"));
         assert_eq!(Some(&"ktm".to_string()), form_data.value("location"));
 
         let file = files.value("file");
         assert_eq!(true, file.is_some());
 
-        assert_eq!("example.txt".to_string(), file.unwrap().name);
+        let mut file = file.unwrap();
+        assert_eq!("example.txt".to_string(), file.name);
+
+        let mut file_content = String::new();
+        file.temp_file.read_to_string(&mut file_content).await;
+        println!("{}", file_content);
+
+        assert_eq!("Hello World".to_string(), file_content);
     }
 }
