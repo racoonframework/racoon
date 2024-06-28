@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_tempfile::TempFile;
 use regex::Regex;
-use tokio::io::{AsyncSeekExt, AsyncWriteExt};
+use tokio::io::AsyncWriteExt;
 
 use crate::core::headers;
 use crate::core::headers::{HeaderValue, Headers};
