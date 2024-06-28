@@ -1198,7 +1198,7 @@ dependencies = [
 
 [[package]]
 name = "racoon"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "async-tempfile",
  "base64 0.22.0",

@@ -22,7 +22,7 @@ You will need `tokio` runtime to run Racoon. Run `cargo add tokio` to install to
 
 ```toml
 [dependencies]
-racoon = "0.1.4"
+racoon = "0.1.5"
 ```
 
 ## Basic Usage
