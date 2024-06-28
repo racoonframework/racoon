@@ -2,11 +2,14 @@ pub mod managers;
 
 use std::future::Future;
 use std::sync::Arc;
+use std::time::Duration;
 
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use crate::core::headers::Headers;
+
+use super::cookie;
 
 pub type SessionResult<T> = Box<dyn Future<Output = T> + Send + Unpin>;
 
@@ -33,7 +36,7 @@ pub type SessionManager = Box<dyn AbstractSessionManager>;
 
 pub struct Session {
     session_manager: Arc<SessionManager>,
-    session_id: String,
+    session_id: Arc<Mutex<Option<String>>>,
     response_headers: Arc<Mutex<Headers>>,
 }
 
@@ -55,16 +58,15 @@ impl Session {
     ) -> Self {
         let session_id_value;
 
-        // If not exists, creates new session id
         if let Some(session_id) = session_id {
-            session_id_value = session_id.to_owned();
+            session_id_value = Some(session_id.to_owned());
         } else {
-            session_id_value = Uuid::new_v4().to_string();
+            session_id_value = None;
         }
 
         Self {
             session_manager,
-            session_id: session_id_value,
+            session_id: Arc::new(Mutex::new(session_id_value)),
             response_headers: response_headers.clone(),
         }
     }
@@ -73,8 +75,9 @@ impl Session {
     /// Session id of the client received from the cookie header `sessionid`. The request instance automatically initializes
     /// with new value if the `sessionid` header is not present.
     ///
-    pub async fn session_id(&self) -> &String {
-        &self.session_id
+    pub async fn session_id(&self) -> Option<String> {
+        // &self.session_id_ref
+        todo!()
     }
 
     ///
@@ -91,16 +94,41 @@ impl Session {
     /// ```
     ///
     pub async fn set<S: AsRef<str>>(&self, name: S, value: S) -> std::io::Result<()> {
-        match self
-            .session_manager
-            .set(&self.session_id, name.as_ref(), value.as_ref())
-            .await
-        {
-            Ok(()) => return Ok(()),
-            Err(error) => {
-                return Err(std::io::Error::other(error));
-            }
-        };
+        // If sessionid was not present in cookie, puts additional Set-Cookie header in the
+        // response.
+
+        let mut session_id_lock = self.session_id.lock().await;
+        let session_id;
+
+        if !session_id_lock.is_some() {
+            // Lazily creates sessionid when set method is called.
+            session_id = Uuid::new_v4().to_string();
+
+            let mut response_headers = self.response_headers.lock().await;
+            cookie::set_cookie(
+                &mut response_headers,
+                "sessionid",
+                &session_id,
+                Duration::from_secs(7 * 86400),
+            );
+
+            *session_id_lock = Some(session_id);
+        }
+
+        if let Some(session_id) = &*session_id_lock {
+            match self
+                .session_manager
+                .set(session_id, name.as_ref(), value.as_ref())
+                .await
+            {
+                Ok(()) => return Ok(()),
+                Err(error) => {
+                    return Err(std::io::Error::other(error));
+                }
+            };
+        }
+
+        Ok(())
     }
 
     ///
@@ -125,9 +153,13 @@ impl Session {
     /// ```
     ///
     pub async fn get<S: AsRef<str>>(&self, name: S) -> Option<String> {
-        self.session_manager
-            .get(&self.session_id, name.as_ref())
-            .await
+        let session_id_lock = self.session_id.lock().await;
+
+        if let Some(session_id) = &*session_id_lock {
+            return self.session_manager.get(session_id, name.as_ref()).await;
+        }
+
+        None
     }
 
     ///
@@ -144,9 +176,13 @@ impl Session {
     /// ```
     ///
     pub async fn remove<S: AsRef<str>>(&self, name: S) -> std::io::Result<()> {
-        self.session_manager
-            .remove(&self.session_id, name.as_ref())
-            .await
+        let session_id_lock = self.session_id.lock().await;
+
+        if let Some(session_id) = &*session_id_lock {
+            return self.session_manager.remove(session_id, name.as_ref()).await;
+        }
+
+        Ok(())
     }
 
     ///
@@ -161,8 +197,16 @@ impl Session {
             "{}=;Expires=Sun, 06 Nov 1994 08:49:37 GMT; Path=/",
             "sessionid"
         );
-        response_headers.insert("Set-Cookie".to_string(), vec![expire_header_value.as_bytes().to_vec()]);
+        response_headers.insert(
+            "Set-Cookie".to_string(),
+            vec![expire_header_value.as_bytes().to_vec()],
+        );
 
-        self.session_manager.destroy(&self.session_id).await
+        let session_lock = self.session_id.lock().await;
+        if let Some(session_id) = &*session_lock {
+            return self.session_manager.destroy(session_id).await;
+        }
+
+        Ok(())
     }
 }

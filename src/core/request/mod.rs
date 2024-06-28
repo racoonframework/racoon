@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
 
 use tokio::sync::Mutex;
 
@@ -16,7 +15,6 @@ use crate::core::stream::Stream;
 use crate::core::path::PathParams;
 use crate::{racoon_debug, racoon_error};
 
-use crate::core::cookie;
 use crate::core::cookie::{parse_cookies_from_header, Cookies};
 use crate::core::session::{Session, SessionManager};
 use crate::core::shortcuts::SingleText;
@@ -61,25 +59,7 @@ impl Request {
         let cookies = parse_cookies_from_header(&headers);
         let session_id = cookies.value("sessionid");
 
-        let has_session_id = session_id.is_some();
         let session = Session::from(session_manager, session_id, response_headers.clone());
-
-        // If sessionid was not present in cookie, puts additional Set-Cookie header in the
-        // response.
-        if !has_session_id {
-            // New generated sessionid
-            let session_id = session.session_id().await;
-
-            {
-                let mut response_headers = response_headers.lock().await;
-                cookie::set_cookie(
-                    &mut response_headers,
-                    "sessionid",
-                    session_id,
-                    Duration::from_secs(7 * 86400),
-                );
-            }
-        }
 
         Self {
             stream,
