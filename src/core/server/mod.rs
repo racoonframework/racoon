@@ -69,6 +69,7 @@ pub struct Server {
     router: Arc<Router<Path>>,
     context: Arc<Context>,
     buffer_size: usize,
+    nodelay: Arc<AtomicBool>,
     middleware: Option<Middleware>,
     request_constraints: Arc<RequestConstraints>,
     form_constraints: Arc<FormConstraints>,
@@ -101,6 +102,7 @@ impl Server {
             router: Arc::new(Router::new()),
             context: Arc::new(Box::pin(None::<String>)),
             buffer_size: 8096,
+            nodelay: Arc::new(AtomicBool::new(false)),
             middleware: None,
             request_constraints: Arc::from(default_request_constraint),
             form_constraints: Arc::from(default_form_constraint),
@@ -204,6 +206,15 @@ impl Server {
         env::set_var("RACOON_LOGGING", "true");
     }
 
+    /// 
+    /// Sets nodelay to client stream.
+    /// It is not available for Unix Domain Socket.
+    ///
+    pub fn nodelay(self) -> Self {
+        self.nodelay.store(true, Ordering::Relaxed);
+        self
+    }
+
     pub fn set_session_manager<T: AbstractSessionManager + 'static>(
         &mut self,
         session_manager: T,
@@ -286,6 +297,7 @@ impl Server {
                 self.context.clone(),
                 self.router.clone(),
                 self.buffer_size.clone(),
+                self.nodelay.clone(),
                 self.middleware,
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
@@ -328,6 +340,7 @@ impl Server {
                 self.context.clone(),
                 self.router.clone(),
                 self.buffer_size.clone(),
+                self.nodelay.clone(),
                 self.middleware,
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
@@ -345,6 +358,7 @@ impl Server {
                 self.context.clone(),
                 self.router.clone(),
                 self.buffer_size.clone(),
+                self.nodelay.clone(),
                 self.middleware,
                 self.request_constraints.clone(),
                 self.form_constraints.clone(),
@@ -395,6 +409,7 @@ impl Server {
         context: Arc<Context>,
         router: Arc<Router<Path>>,
         buffer_size: usize,
+        nodelay: Arc<AtomicBool>,
         middleware: Option<Middleware>,
         request_constraints: Arc<RequestConstraints>,
         form_constraints: Arc<FormConstraints>,
@@ -425,6 +440,10 @@ impl Server {
                     continue;
                 }
             };
+
+            if nodelay.load(Ordering::Relaxed) {
+                let _ = tcp_stream.set_nodelay(true);
+            }
 
             let request_constraints = request_constraints.clone();
             let form_constraints = form_constraints.clone();
