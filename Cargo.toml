@@ -1,6 +1,6 @@
 [package]
 name = "racoon"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 authors = ["Tej Magar"]
 description = "Racoon is a fast, fully customizable web framework for Rust focusing on simplicity."
