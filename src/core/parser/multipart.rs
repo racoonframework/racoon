@@ -566,7 +566,7 @@ pub mod tests {
         assert_eq!(true, file_field.is_some());
 
         let file = file_field.unwrap();
-        let file_path = file.temp_path();
+        let file_path = &file.temp_path;
         assert_eq!("example.txt".to_string(), file.name);
 
         let file_content = tokio::fs::read_to_string(&file_path).await.unwrap();
