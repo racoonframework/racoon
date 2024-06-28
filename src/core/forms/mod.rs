@@ -1,11 +1,17 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 
 use async_tempfile::TempFile;
 
 #[derive(Debug)]
 pub struct FileField {
     pub name: String,
-    pub temp_file: TempFile,
+    temp_file: TempFile,
+}
+
+impl FileField {
+    pub fn temp_path(&self) -> &PathBuf {
+        self.temp_file.file_path()
+    }
 }
 
 pub type Files = HashMap<String, Vec<FileField>>;
@@ -15,7 +21,6 @@ pub trait FileFieldShortcut {
     /// Performs case-insensitive lookup and returns first file found.
     fn value<S: AsRef<str>>(&self, name: S) -> Option<&FileField>;
 }
-
 
 impl FileFieldShortcut for Files {
     fn value<S: AsRef<str>>(&self, name: S) -> Option<&FileField> {
@@ -62,8 +67,13 @@ pub struct FormConstraints {
 }
 
 impl FormConstraints {
-    pub fn new(max_body_size: usize, max_header_size: usize, max_file_size: usize,
-               max_value_size: usize, custom_max_sizes: HashMap<String, usize>) -> Self {
+    pub fn new(
+        max_body_size: usize,
+        max_header_size: usize,
+        max_file_size: usize,
+        max_value_size: usize,
+        custom_max_sizes: HashMap<String, usize>,
+    ) -> Self {
         Self {
             max_body_size,
             max_header_size,
