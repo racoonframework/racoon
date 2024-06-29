@@ -121,11 +121,11 @@ async fn ws(request: Request) -> Response {
 async fn main() {
     let paths = vec![
         Path::new("/ws/", view!(ws))
-        ];
+    ];
 
     let _ = Server::bind("127.0.0.1:8080")
-            .urls(paths)
-            .run().await;
+        .urls(paths)
+        .run().await;
 }
 ```
 
