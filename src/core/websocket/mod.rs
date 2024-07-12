@@ -348,6 +348,10 @@ impl WebSocket {
         Box::new(self)
     }
 
+    pub async fn close(&self) {
+        let _ = self.stream.shutdown().await;
+    }
+
     pub fn exit(self) -> Box<Self> {
         Box::new(self)
     }
