@@ -283,8 +283,6 @@ pub mod reader {
 }
 
 pub mod builder {
-    use rand::Rng;
-
     use crate::core::websocket::frame::Frame;
 
     pub fn build_opt(frame: &Frame, mask: bool) -> Vec<u8> {
@@ -327,8 +325,7 @@ pub mod builder {
         let mut payload = frame.payload.clone();
 
         if mask {
-            let mut thread_rng = rand::thread_rng();
-            let mask_bytes: [u8; 4] = thread_rng.gen();
+            let mask_bytes:[u8; 4] = rand::random();
             buffer.extend_from_slice(&mask_bytes);
 
             for i in 0..frame.payload.len() {
