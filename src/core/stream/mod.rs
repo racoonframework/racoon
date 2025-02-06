@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::io::ErrorKind;
-use std::net::Shutdown;
+use std::net::{Shutdown, SocketAddr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -19,7 +19,7 @@ pub type Stream = Box<dyn AbstractStream>;
 
 pub trait AbstractStream: Sync + Send {
     fn buffer_size(&self) -> StreamResult<usize>;
-    fn peer_addr(&self) -> StreamResult<Option<String>>;
+    fn peer_addr(&self) -> StreamResult<Option<SocketAddr>>;
     fn restore_payload<'a>(&'a self, bytes: &[u8]) -> StreamResult<std::io::Result<()>>;
     fn restored_len(&self) -> StreamResult<usize>;
     fn read_chunk(&self) -> StreamResult<std::io::Result<Vec<u8>>>;
@@ -72,14 +72,14 @@ impl AbstractStream for TcpStreamWrapper {
         Box::new(Box::pin(async move { buffer_size }))
     }
 
-    fn peer_addr(&self) -> StreamResult<Option<String>> {
+    fn peer_addr(&self) -> StreamResult<Option<SocketAddr>> {
         let stream_ref = self.stream.clone();
 
         Box::new(Box::pin(async move {
             let stream = stream_ref.lock().await;
 
             return match stream.peer_addr() {
-                Ok(addr) => Some(addr.to_string()),
+                Ok(addr) => Some(addr),
                 Err(error) => {
                     racoon_debug!("Failed to get peer addr. Error: {}", error);
                     None
@@ -212,7 +212,7 @@ impl AbstractStream for UnixStreamWrapper {
         Box::new(Box::pin(async move { buffer_size }))
     }
 
-    fn peer_addr(&self) -> StreamResult<Option<String>> {
+    fn peer_addr(&self) -> StreamResult<Option<SocketAddr>> {
         Box::new(Box::pin(async move {
             return None;
         }))
@@ -309,7 +309,7 @@ impl AbstractStream for UnixStreamWrapper {
 
 #[derive(Debug)]
 pub struct TlsTcpStreamWrapper {
-    peer_addr: String,
+    peer_addr: SocketAddr,
     stream: Arc<Mutex<TcpStream>>,
     reader: Arc<Mutex<ReadHalf<TlsStream<TcpStream>>>>,
     writer: Arc<Mutex<WriteHalf<TlsStream<TcpStream>>>>,
@@ -323,7 +323,7 @@ impl TlsTcpStreamWrapper {
         tls_acceptor: &TlsAcceptor,
         buffer_size: usize,
     ) -> std::io::Result<Self> {
-        let peer_addr = tcp_stream.peer_addr()?.to_string();
+        let peer_addr = tcp_stream.peer_addr()?;
         let std_tcp_stream = tcp_stream.into_std()?;
 
         // Stream for shutting down reader/writer later
@@ -350,7 +350,7 @@ impl AbstractStream for TlsTcpStreamWrapper {
         Box::new(Box::pin(async move { buffer_size }))
     }
 
-    fn peer_addr(&self) -> StreamResult<Option<String>> {
+    fn peer_addr(&self) -> StreamResult<Option<SocketAddr>> {
         let peer_addr = self.peer_addr.clone();
 
         Box::new(Box::pin(async move { Some(peer_addr) }))
@@ -464,7 +464,7 @@ impl AbstractStream for TestStreamWrapper {
         Box::new(Box::pin(async move { self.buffer_size.clone() }))
     }
 
-    fn peer_addr(&self) -> StreamResult<Option<String>> {
+    fn peer_addr(&self) -> StreamResult<Option<SocketAddr>> {
         Box::new(Box::pin(async move { None }))
     }
 

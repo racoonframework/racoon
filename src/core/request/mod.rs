@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
@@ -79,7 +80,7 @@ impl Request {
         }
     }
 
-    pub async fn remote_addr(&self) -> Option<String> {
+    pub async fn remote_addr(&self) -> Option<SocketAddr> {
         self.stream.peer_addr().await
     }
 
