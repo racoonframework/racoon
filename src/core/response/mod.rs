@@ -77,6 +77,8 @@ impl HttpResponse {
         self.headers
             .set("Content-Length", data.len().to_string());
 
+        self.headers.set("Content-Type", "text/html");
+
         if self.headers.value("Connection").is_none() {
             if self.keep_alive {
                 self.headers.set("Connection", "keep-alive");
